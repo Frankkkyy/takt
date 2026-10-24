@@ -1,0 +1,13 @@
+# secrets
+.env
+.env.*
+!.env.example
+# deps / build
+node_modules/
+web/dist/
+dist/
+# misc
+*.log
+.DS_Store
+test-results/
+playwright-report/

@@ -1,0 +1,35 @@
+{
+  "name": "takt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Takt: airline-style voluntary bumping for factory schedules, settled with PayPal.",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=20.19" },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,green \"tsx watch server/index.ts\" \"vite\"",
+    "build": "tsc --noEmit && vite build",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test server/app.test.ts",
+    "screenshot": "tsx scripts/screenshot.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "tsx": "^4.20.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "concurrently": "^9.2.0",
+    "playwright": "1.61.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.0"
+  }
+}
