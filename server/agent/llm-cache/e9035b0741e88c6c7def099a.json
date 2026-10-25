@@ -1,0 +1,49 @@
+{
+ "key": "e9035b0741e88c6c7def099a",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:04.278Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf4REhgX2EPgrVCp2aM",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "tool_use",
+    "id": "toolu_011AzwqecR2tNkjHToW54fXE",
+    "name": "plan_bump_options",
+    "input": {
+     "exclude_customer_ids": [
+      "keller",
+      "alpdrone",
+      "vuilleumier"
+     ]
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2165,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 76,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

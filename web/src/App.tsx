@@ -42,7 +42,7 @@ export function App() {
   const offerMatch = hash.match(/^#\/offer\/(.+)$/);
   if (offerMatch) return <OfferPage id={offerMatch[1]} state={state} onState={setState} />;
 
-  const showProposal = ['planned', 'offers-sent', 'awaiting-payment'].includes(state.stage);
+  const showProposal = ['planned', 'offers-sent', 'awaiting-approval', 'awaiting-payment'].includes(state.stage);
   return (
     <div className="app">
       <header className="top">
@@ -61,7 +61,12 @@ export function App() {
         </div>
         <div className="modes">
           <span className={`badge ${state.modes.paypal}`}>PayPal: {state.modes.paypal}</span>
-          <span className="badge">Agent: {state.modes.agent}</span>
+          <span
+            className={`badge agent-${state.agent.last ?? state.agent.configured}`}
+            title={`Configured: ${state.agent.configured === 'llm' ? `Claude ${state.agent.model} with rules fallback` : 'rules only'}\nLive calls ${state.agent.liveCalls}, recorded ${state.agent.replayCalls}\nTokens ${state.agent.inputTokens} in / ${state.agent.outputTokens} out, USD ${state.agent.costUsd.toFixed(4)}${state.agent.fallbackReason ? `\nLast fallback: ${state.agent.fallbackReason}` : ''}`}
+          >
+            Agent: {state.agent.configured === 'deterministic' ? 'rules' : state.agent.last === 'fallback' ? 'rules (fallback)' : `Claude Haiku 5.5${state.agent.last === 'replay' ? ' · recorded' : state.agent.last === 'live' ? ' · live' : ''}`}
+          </span>
           <button className="btn small ghost" onClick={async () => setState((await post('/api/demo/reset')).state)}>Reset demo</button>
         </div>
       </header>
@@ -71,7 +76,7 @@ export function App() {
           <div className="ledger">
             <h3>PayPal &amp; agent log</h3>
             <ul>
-              {state.ledger.slice(0, 14).map((e) => (
+              {state.ledger.slice(0, 24).map((e) => (
                 <li key={e.id} className={`src-${e.source}`}>
                   <span className="time">{new Date(e.at).toLocaleTimeString('de-CH')}</span>
                   <span className="src">{e.source}</span>

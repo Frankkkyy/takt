@@ -13,7 +13,7 @@ import type { AuthorizationResult, Money } from '../server/paypal/gateway.js';
 import { approveInSandbox } from './paypal-approve.js';
 
 dotenv.config({ quiet: true });
-if (!process.env.PAYPAL_CLIENT_ID) dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname, quiet: true });
+dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname, quiet: true });
 const { PAYPAL_CLIENT_ID: id, PAYPAL_CLIENT_SECRET: secret } = process.env;
 if (!id || !secret) {
   console.error('Missing PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET');

@@ -1,0 +1,47 @@
+{
+ "key": "7d09808d0a6396ce90053f83",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:28.481Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf68cP5cukshSh4ARKf",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "tool_use",
+    "id": "toolu_01QoeqkisiBF2MqtvgLn2Upg",
+    "name": "accept_offer",
+    "input": {
+     "offer_id": "OF-J-2047",
+     "message": "Vielen Dank für Ihre Rückmeldung, Frau Meier. Wir liefern Ihre Lampenschirme wie vereinbart am Donnerstag. Als Entschädigung erhalten Sie CHF 45 per PayPal. Wir danken Ihnen für Ihr Verständnis.",
+     "message_en": "Thank you for your reply, Ms. Meier. We will deliver your lamp shades as agreed on Thursday. As compensation you receive CHF 45 via PayPal. Thank you for your understanding."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2294,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2294,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 274,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

@@ -1,0 +1,55 @@
+{
+ "key": "b2fac610e71ec6796e1db5a6",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:21:58.256Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf3wMQnrWCfn9jfVvZx",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "tool_use",
+    "id": "toolu_01JSYaMkjyEUxYrHWUQZDvxQ",
+    "name": "record_rush_job",
+    "input": {
+     "customer_name": "Thomas Schmid",
+     "contact_name": "Thomas Schmid",
+     "city": "Escholzmatt",
+     "language": "en",
+     "part_family": "bracket",
+     "part_title": "Harvester header brackets",
+     "quantity": 6,
+     "material_grade": "S355",
+     "thickness_mm": 8,
+     "due_day": 1,
+     "notes": "Replacement for cracked harvester header brackets; customer refers to a photo (not available to intake); needed by Tuesday evening, harvest starts Wednesday."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 1643,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 365,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

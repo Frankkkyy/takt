@@ -1,0 +1,53 @@
+{
+ "key": "450152d09de9e592ad8fcf5c",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:53.014Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf7oXV98Pw3r31XZq31",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "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"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_013gknN6DD3v6M6YyDSKP31F",
+    "name": "reply_to_customer",
+    "input": {
+     "offer_id": "OF-J-2047",
+     "proposed_compensation_chf": 45,
+     "message": "Vielen Dank für Ihre Rückfrage. Die Entschädigung von CHF 45 erfolgt per PayPal Payout. Nach Ihrer Zustimmung wird die Auszahlung von unserem Inhaber freigegeben. Bitte bestätigen Sie uns, ob Sie die Lieferung am Donnerstag mit CHF 45 Entschädigung annehmen.",
+     "message_en": "Thank you for your question. The compensation of CHF 45 is paid via PayPal Payout. After your agreement, the payment is released by our owner. Please confirm whether you accept Thursday delivery with CHF 45 compensation."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2288,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2288,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 807,
+   "output_tokens_details": {
+    "thinking_tokens": 461
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

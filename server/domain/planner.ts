@@ -9,7 +9,7 @@
 // Cheapest compensation wins; ties -> fewer bumps -> later insertion (less disruption).
 import type { Customer, Job, Plan, RushRequest } from '../../shared/types.js';
 import { schedule } from './scheduler.js';
-import { POLICY, compensation, rushPremium } from './pricing.js';
+import { POLICY, compensation, compensationBudget, rushPremium } from './pricing.js';
 
 export interface BumpCandidate {
   jobId: string;
@@ -33,7 +33,11 @@ export interface PlanResult {
   netUpliftChf: number;
   candidatesEvaluated: number;
   firstFitDay: number; // when the rush job could ship without bumping anyone
+  /** Up to 3 cheapest feasible plans with distinct sets of bumped jobs (options[0] is the cheapest = this plan). */
+  options: PlanCandidate[];
 }
+
+export type PlanCandidate = Omit<PlanResult, 'options' | 'candidatesEvaluated' | 'firstFitDay'>;
 
 export function rushToJob(rush: RushRequest, seq: number): Job {
   return {
@@ -73,8 +77,11 @@ export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest):
   const tail = schedule([...booked, rushToJob(rush, 1e9)]);
   const firstFitDay = tail.timing['RUSH-' + rush.id].deliveryDay;
 
-  let best: PlanResult | null = null;
   let evaluated = 0;
+  const bestBySet = new Map<string, PlanCandidate>();
+  const better = (a: PlanCandidate, b: PlanCandidate) =>
+    a.compensationTotalChf < b.compensationTotalChf ||
+    (a.compensationTotalChf === b.compensationTotalChf && (a.bumps.length < b.bumps.length || (a.bumps.length === b.bumps.length && a.insertAt > b.insertAt)));
 
   for (let p = 0; p <= booked.length; p++) {
     const before = booked.slice(0, p);
@@ -107,7 +114,8 @@ export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest):
       const premium = rushPremium(rush.basePriceChf, compTotal);
       const net = premium - compTotal;
       if (net < POLICY.marginFloorChf) continue;
-      const cand: PlanResult = {
+      if (compTotal > compensationBudget(premium)) continue;
+      const cand: PlanCandidate = {
         feasible: true,
         reason: bumps.length ? `Fits by ${bumps.length} voluntary bump(s)` : 'Fits without bumping anyone',
         insertAt: p,
@@ -118,18 +126,15 @@ export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest):
         rushPremiumChf: premium,
         compensationTotalChf: compTotal,
         netUpliftChf: net,
-        candidatesEvaluated: 0,
-        firstFitDay,
       };
-      if (
-        !best ||
-        compTotal < best.compensationTotalChf ||
-        (compTotal === best.compensationTotalChf && (bumps.length < best.bumps.length || (bumps.length === best.bumps.length && p > best.insertAt)))
-      ) best = cand;
+      const key = bumps.map((b) => b.jobId).sort().join('+');
+      const prev = bestBySet.get(key);
+      if (!prev || better(cand, prev)) bestBySet.set(key, cand);
     }
   }
 
-  if (!best) {
+  const options = [...bestBySet.values()].sort((a, b) => (better(a, b) ? -1 : better(b, a) ? 1 : 0)).slice(0, 3);
+  if (!options.length) {
     return {
       feasible: false,
       reason: `No feasible plan: earliest delivery without breaking a firm promise is day ${firstFitDay}`,
@@ -143,10 +148,10 @@ export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest):
       netUpliftChf: 0,
       candidatesEvaluated: evaluated,
       firstFitDay,
+      options: [],
     };
   }
-  best.candidatesEvaluated = evaluated;
-  return best;
+  return { ...options[0], candidatesEvaluated: evaluated, firstFitDay, options };
 }
 
 export type { Plan };

@@ -1,18 +1,19 @@
 import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 // Local workspace convenience: credentials may live in the parent workspace's .env (never in this repo).
-if (!process.env.PAYPAL_CLIENT_ID) dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname, quiet: true });
+// dotenv never overrides variables that are already set, so the project .env and the real environment win.
+dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname, quiet: true });
 import express, { type NextFunction, type Request, type Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { createPayPal } from './paypal/index.js';
-import { createNegotiator } from './agent/negotiator.js';
+import { createAgent } from './agent/hybrid.js';
 import { TaktApp } from './app.js';
 
 const paypal = createPayPal();
 const publicBase = process.env.PUBLIC_BASE_URL ?? 'http://localhost:5173';
-const app = new TaktApp(paypal, createNegotiator(), process.env.PAYPAL_CURRENCY ?? 'CHF', {
+const app = new TaktApp(paypal, createAgent(), process.env.PAYPAL_CURRENCY ?? 'CHF', {
   returnUrl: `${publicBase}/api/paypal/return`,
   payoutReceiver: process.env.PAYPAL_SANDBOX_PAYOUT_RECEIVER || undefined,
 });
@@ -42,13 +43,26 @@ const wrap = (fn: (req: Request) => Promise<unknown> | unknown) => async (req: R
   }
 };
 
+// Endpoints that may call Claude: small per-IP limit for the public demo (the LLM client also has a spend ceiling).
+const hits = new Map<string, number[]>();
+const llmLimit = (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip ?? 'local';
+  const now = Date.now();
+  const list = (hits.get(ip) ?? []).filter((t) => now - t < 3_600_000);
+  if (list.length >= Number(process.env.AGENT_MAX_REQ_PER_IP_HOUR ?? 60)) return res.status(429).json({ ok: false, error: 'Demo rate limit reached, try again later' });
+  list.push(now);
+  hits.set(ip, list);
+  next();
+};
 server.get('/healthz', (_req, res) => res.json({ ok: true }));
 server.get('/api/state', (_req, res) => res.json(app.snapshot()));
 server.get('/api/config', (_req, res) => res.json({ paypalMode: paypal.mode, paypalClientId: paypal.clientId ?? null, currency: app.state.modes.currency }));
 server.post('/api/demo/reset', wrap(() => app.reset()));
-server.post('/api/rush/intake', wrap((req) => app.intake(String(req.body?.text ?? ''))));
-server.post('/api/rush/plan', wrap(() => app.plan()));
+server.post('/api/rush/intake', llmLimit, wrap((req) => app.intake(String(req.body?.text ?? ''))));
+server.post('/api/rush/plan', llmLimit, wrap(() => app.plan()));
 server.post('/api/offers/send', wrap(() => app.sendOffers()));
+server.post('/api/offers/:id/reply', llmLimit, wrap((req) => app.reply(String(req.params.id), String(req.body?.text ?? ''))));
+server.post('/api/approval/approve', wrap(() => app.approve()));
 server.post('/api/offers/:id/respond', wrap((req) => app.respond(String(req.params.id), Boolean(req.body?.accept))));
 server.post('/api/rush/mock-approve', wrap(() => app.mockApprove()));
 // Sandbox: JS SDK onApprove -> server authorizes the order (commit still waits for the webhook / reconcile).
@@ -78,4 +92,4 @@ if (existsSync(dist)) {
 }
 
 const port = Number(process.env.PORT ?? 8787);
-server.listen(port, () => console.log(`Takt API on http://localhost:${port} (PayPal: ${paypal.mode})`));
+server.listen(port, () => console.log(`Takt API on http://localhost:${port} (PayPal: ${paypal.mode}, agent: ${app.state.agent.configured} ${app.state.agent.model}${process.env.ANTHROPIC_API_KEY ? '' : ', replay/fallback only'})`));

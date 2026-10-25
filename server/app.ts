@@ -1,10 +1,13 @@
 // Takt application service: in-memory demo state + the rush / bump / settle flow.
-import type { BumpOffer, Customer, DemoState, Job, LedgerEvent, Plan, RushRequest } from '../shared/types.js';
+import type { BumpOffer, Customer, DemoState, Job, LedgerEvent, MoneyMove, Plan, PlanOptionView, RushRequest } from '../shared/types.js';
 import { buildSeedJobs, customers as seedCustomers, machines, SHOP } from './domain/seed.js';
 import { schedule } from './domain/scheduler.js';
-import { planRush } from './domain/planner.js';
-import type { Negotiator } from './agent/negotiator.js';
-import { dayLabel } from './agent/negotiator.js';
+import { planRush, type PlanCandidate, type PlanResult } from './domain/planner.js';
+import { compensationBudget, perJobCap } from './domain/pricing.js';
+import type { AgentStep, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
+import { dayLabel, relDay } from './agent/agent.js';
+import { templateOffer } from './agent/deterministic.js';
+import { approvalChecks, checkAmount, checkDeliveryDay, checkMessage, offerCeiling } from './agent/guardrails.js';
 import type { PayPalGateway } from './paypal/gateway.js';
 import type { PayPalWebhookEvent } from './paypal/gateway.js';
 
@@ -24,7 +27,7 @@ export class TaktApp {
 
   constructor(
     private paypal: PayPalGateway,
-    private agent: Negotiator,
+    private agent: RushAgent,
     private currency = SHOP.currency,
     private opts: {
       /** Sandbox: PayPal redirects the rush buyer here after approval (GET /api/paypal/return). */
@@ -52,12 +55,14 @@ export class TaktApp {
       ledger: [],
       yield: { premiumsChf: 0, compensationsChf: 0, netChf: 0, rushJobsWon: 0 },
       modes: { paypal: this.paypal.mode, agent: this.agent.kind, currency: this.currency },
+      agent: this.agent.status(),
     };
     this.log('system', 'Demo reset', `${SHOP.name}, ${SHOP.city}: ${jobs.length} booked jobs on ${machines.length} machines`);
   }
 
   snapshot(): DemoState {
     this.state.now = new Date().toISOString();
+    this.state.agent = this.agent.status();
     return this.state;
   }
 
@@ -85,73 +90,149 @@ export class TaktApp {
   }
   private cust(id: string) { return this.state.customers.find((c) => c.id === id); }
 
+  private logSteps(steps: AgentStep[]) {
+    for (const s of steps) this.log(s.kind === 'tool' ? 'tool' : s.kind === 'guardrail' ? 'guardrail' : 'agent', s.title, s.detail);
+  }
+
+  private viaLabel(source: string) {
+    const m = this.state.agent.model.replace(/^claude-/, '').replace(/-(\d+)-(\d+)$/, ' $1.$2').replace(/^\w/, (c) => c.toUpperCase());
+    return source === 'live' ? `Claude ${m} (live)` : source === 'replay' ? `Claude ${m} (recorded)` : source === 'fallback' ? 'rules (fallback)' : 'rules';
+  }
+
   // ---- 1. Intake -----------------------------------------------------------------------------------
   async intake(text: string) {
     if (!text?.trim()) throw new Error('Empty request');
-    const r = await this.agent.intake(text, this.boardStart);
+    const res = await this.agent.intake(text.slice(0, 3000), this.boardStart);
+    this.state.agent = this.agent.status();
+    const r = res.value;
+    const slug = r.customerName.toLowerCase().replace(/\(.*?\)/g, '').normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'rush';
     const rush: RushRequest = {
       id: String(Date.now()).slice(-6),
       rawText: text,
-      customer: { name: r.customerName, contact: r.contact, city: r.city, email: 'thomas@hof-schmid.example', lang: r.lang },
+      customer: { name: r.customerName, contact: r.contact, city: r.city, email: `orders@${slug}.example`, lang: r.lang },
       title: r.title,
       material: r.material,
       qty: r.qty,
       ops: r.ops,
       dueDay: r.dueDay,
       basePriceChf: r.basePriceChf,
-      extractedBy: this.agent.kind === 'llm' ? 'llm' : 'deterministic',
+      extractedBy: res.source === 'live' || res.source === 'replay' ? 'llm' : 'deterministic',
     };
     this.state.rush = rush;
     this.state.plan = undefined;
     this.state.rushOrder = undefined;
+    this.state.approval = undefined;
     this.state.stage = 'intake';
+    this.logSteps(res.steps);
     const hours = rush.ops.map((o) => `${o.machineId} ${o.hours} h`).join(' + ');
-    this.log('agent', 'Rush request understood', `${rush.qty}× ${rush.title}, ${rush.material}; routing ${hours}; due ${dayLabel(this.boardStart, rush.dueDay, 'en')}; base CHF ${rush.basePriceChf}`);
+    this.log('agent', 'Rush request understood', `Read by ${this.viaLabel(res.source)} (${rush.customer.lang.toUpperCase()}): ${rush.qty}× ${rush.title}, ${rush.material}; routing ${hours} (code); due ${dayLabel(this.boardStart, rush.dueDay, 'en')}; base CHF ${rush.basePriceChf} (rate card)`);
     return rush;
   }
 
   // ---- 2. Make room ---------------------------------------------------------------------------------
+  private optionDetail(optionId: string, o: PlanCandidate): OptionDetail {
+    return {
+      optionId,
+      compensationTotalChf: o.compensationTotalChf,
+      rushPremiumChf: o.rushPremiumChf,
+      rushPriceChf: o.rushPriceChf,
+      netUpliftChf: o.netUpliftChf,
+      budgetCapChf: compensationBudget(o.rushPremiumChf),
+      bumps: o.bumps.map((b) => {
+        const job = this.state.jobs.find((j) => j.id === b.jobId)!;
+        const c = this.cust(b.customerId)!;
+        return {
+          jobId: b.jobId, jobTitle: job.title, customerId: c.id, customerName: c.name, contact: c.contact, lang: c.lang,
+          fromDay: b.fromDay, toDay: b.toDay, delayDays: b.delayDays, compensationChf: b.compensationChf,
+          mechanism: job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout', capChf: perJobCap(job),
+        };
+      }),
+    };
+  }
+
   async plan(excludeCustomerIds: string[] = []) {
     const rush = this.state.rush;
     if (!rush) throw new Error('No rush request');
-    const customers = this.state.customers.map((c) => (excludeCustomerIds.includes(c.id) ? { ...c, flexible: false } : c));
-    const res = planRush(this.state.jobs, customers, rush);
-    const proposed = schedule(res.orderedJobs);
-    this.pending = { order: res.orderedJobs, rushJob: res.rushJob };
+    const candidates = new Map<string, { cand: PlanCandidate; detail: OptionDetail }>();
+    let run = 0;
+    let last: PlanResult | undefined;
+    let lastViews: OptionDetail[] = [];
+    const runPlanner = (extra: string[]): PlannerView => {
+      run++;
+      const ex = new Set([...excludeCustomerIds, ...extra]);
+      const customers = this.state.customers.map((c) => (ex.has(c.id) ? { ...c, flexible: false } : c));
+      last = planRush(this.state.jobs, customers, rush);
+      lastViews = last.options.map((o, i) => {
+        const detail = this.optionDetail(`${run}${'ABC'[i]}`, o);
+        candidates.set(detail.optionId, { cand: o, detail });
+        return detail;
+      });
+      return { feasible: last.feasible, reason: last.reason, candidatesEvaluated: last.candidatesEvaluated, options: lastViews };
+    };
+    const res = await this.agent.plan({ rush, customers: this.state.customers, jobs: this.state.jobs, boardStart: this.boardStart, runPlanner });
+    this.state.agent = this.agent.status();
+    if (!last) runPlanner([]);
+    const chosen = candidates.get(res.value.optionId);
+    const base = last!;
+    const pick: PlanCandidate = chosen?.cand ?? base;
+    const detail = chosen?.detail;
+    this.pending = { order: pick.orderedJobs, rushJob: pick.rushJob };
+    this.logSteps(res.steps);
+
     const offers: BumpOffer[] = [];
-    for (const b of res.bumps) {
-      const c = this.cust(b.customerId)!;
-      const job = this.state.jobs.find((j) => j.id === b.jobId)!;
-      const mechanism: BumpOffer['mechanism'] = job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout';
-      const draft = await this.agent.draftOffer(c, job, b, mechanism, this.boardStart);
-      offers.push({ id: `OF-${job.id}`, jobId: job.id, customerId: c.id, fromDay: b.fromDay, toDay: b.toDay, delayDays: b.delayDays, compensationChf: b.compensationChf, mechanism, lang: c.lang, ...draft, status: 'draft' });
+    for (const b of detail?.bumps ?? []) {
+      let draft = res.value.drafts[b.jobId];
+      if (!draft) {
+        draft = templateOffer(b, this.boardStart);
+        this.log('guardrail', `Template offer for ${b.customerName}`, 'No valid agent draft for this job, so the DE/FR/EN template is used');
+      }
+      const now = new Date().toISOString();
+      offers.push({
+        id: `OF-${b.jobId}`, jobId: b.jobId, customerId: b.customerId, fromDay: b.fromDay, toDay: b.toDay, delayDays: b.delayDays,
+        compensationChf: b.compensationChf, mechanism: b.mechanism, lang: b.lang, message: draft.message, messageEn: draft.messageEn,
+        status: 'draft', capChf: b.capChf, thread: [{ from: 'shop', text: draft.message, textEn: draft.messageEn, at: now }],
+      });
     }
+    const feasible = !!chosen;
     const firm = this.state.customers.filter((c) => !c.flexible || excludeCustomerIds.includes(c.id)).map((c) => c.name);
+    const options: PlanOptionView[] = lastViews.map((o) => ({
+      optionId: o.optionId, compensationTotalChf: o.compensationTotalChf, rushPremiumChf: o.rushPremiumChf, netUpliftChf: o.netUpliftChf,
+      bumps: o.bumps.map((b) => ({ jobId: b.jobId, customerId: b.customerId, delayDays: b.delayDays, compensationChf: b.compensationChf, mechanism: b.mechanism })),
+    }));
+    if (detail && !options.some((o) => o.optionId === detail.optionId)) {
+      options.unshift({ optionId: detail.optionId, compensationTotalChf: detail.compensationTotalChf, rushPremiumChf: detail.rushPremiumChf, netUpliftChf: detail.netUpliftChf, bumps: detail.bumps.map((b) => ({ jobId: b.jobId, customerId: b.customerId, delayDays: b.delayDays, compensationChf: b.compensationChf, mechanism: b.mechanism })) });
+    }
     const plan: Plan = {
       id: `P${Date.now().toString(36)}`,
       rushId: rush.id,
-      feasible: res.feasible,
-      reason: res.reason,
-      insertAt: res.insertAt,
-      bumpedJobIds: res.bumps.map((b) => b.jobId),
-      proposed,
+      feasible,
+      reason: feasible ? (pick.bumps.length ? `Fits by ${pick.bumps.length} voluntary bump(s)` : 'Fits without bumping anyone') : base.reason,
+      insertAt: pick.insertAt,
+      bumpedJobIds: pick.bumps.map((b) => b.jobId),
+      proposed: schedule(pick.orderedJobs),
       offers,
-      rushPriceChf: res.rushPriceChf,
-      rushPremiumChf: res.rushPremiumChf,
-      compensationTotalChf: res.compensationTotalChf,
-      netUpliftChf: res.netUpliftChf,
-      candidatesEvaluated: res.candidatesEvaluated,
+      rushPriceChf: pick.rushPriceChf,
+      rushPremiumChf: pick.rushPremiumChf,
+      compensationTotalChf: pick.compensationTotalChf,
+      netUpliftChf: pick.netUpliftChf,
+      candidatesEvaluated: base.candidatesEvaluated,
+      budgetCapChf: compensationBudget(pick.rushPremiumChf),
+      options,
+      chosenOptionId: detail?.optionId ?? '',
+      justification: res.value.justification,
+      chosenBy: res.source === 'live' || res.source === 'replay' ? 'llm' : 'deterministic',
       explanation: [
-        `Without moving anyone, the earliest delivery would be ${dayLabel(this.boardStart, res.firstFitDay, 'en')} — too late.`,
-        `Simulated ${res.candidatesEvaluated} re-sequencing options on the laser and press brake.`,
+        `Without moving anyone, the earliest delivery would be ${dayLabel(this.boardStart, base.firstFitDay, 'en')} — too late.`,
+        `Planner simulated ${base.candidatesEvaluated} re-sequencing options on the laser and press brake; ${options.length} feasible plan(s) offered to the agent.`,
         `Firm promises kept untouched: ${firm.join(', ')}.`,
         ...offers.map((o) => `${this.cust(o.customerId)!.name}: +${o.delayDays} day(s) → CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less on their authorization' : 'PayPal Payout, already paid'})`),
-        res.feasible ? `Rush price CHF ${res.rushPriceChf} = base ${rush.basePriceChf} + premium ${res.rushPremiumChf}; net uplift CHF ${res.netUpliftChf} after compensations.` : res.reason,
+        feasible ? `Rush price CHF ${pick.rushPriceChf} = base ${rush.basePriceChf} + premium ${pick.rushPremiumChf}; compensation budget CHF ${compensationBudget(pick.rushPremiumChf)}; net uplift CHF ${pick.netUpliftChf}.` : base.reason,
       ],
     };
     this.state.plan = plan;
+    this.state.approval = undefined;
     this.state.stage = 'planned';
-    this.log('agent', res.feasible ? 'Room found' : 'No room', `${res.reason}. ${res.candidatesEvaluated} options simulated; cheapest compensation CHF ${res.compensationTotalChf}`);
+    this.log('agent', feasible ? `Room found: option ${plan.chosenOptionId}` : 'No room', `${this.viaLabel(res.source)}: ${res.value.justification}`);
     return plan;
   }
 
@@ -160,41 +241,182 @@ export class TaktApp {
     if (!p?.feasible) throw new Error('No feasible plan');
     for (const o of p.offers) if (o.status === 'draft') o.status = 'sent';
     this.state.stage = 'offers-sent';
-    this.log('agent', 'Offers sent', p.offers.map((o) => `${this.cust(o.customerId)!.name} (${o.lang.toUpperCase()})`).join(', '));
-    if (p.offers.length === 0) return this.openRushCheckout();
+    this.log('agent', 'Offers sent', p.offers.map((o) => `${this.cust(o.customerId)!.name} (${o.lang.toUpperCase()})`).join(', ') || 'none needed');
+    this.maybeRequestApproval();
   }
 
   // ---- 3. Customer answers --------------------------------------------------------------------------
-  async respond(offerId: string, accept: boolean) {
+  private offerCtx(offerId: string) {
     const p = this.state.plan;
     const o = p?.offers.find((x) => x.id === offerId);
     if (!p || !o) throw new Error('Offer not found');
+    return { p, o, c: this.cust(o.customerId)!, job: this.state.jobs.find((j) => j.id === o.jobId)! };
+  }
+
+  private recomputeTotals() {
+    const p = this.state.plan!;
+    p.compensationTotalChf = p.offers.filter((o) => o.status !== 'declined').reduce((s, o) => s + o.compensationChf, 0);
+    p.netUpliftChf = p.rushPremiumChf - p.compensationTotalChf;
+  }
+
+  /** Accept / Decline buttons on the offer page (structured, no LLM needed). */
+  async respond(offerId: string, accept: boolean) {
+    const { o } = this.offerCtx(offerId);
     if (o.status !== 'sent') return o;
-    const c = this.cust(o.customerId)!;
-    const job = this.state.jobs.find((j) => j.id === o.jobId)!;
-    o.respondedAt = new Date().toISOString();
-    if (!accept) {
-      o.status = 'declined';
-      this.log('agent', `${c.name} declined`, 'Re-planning without them');
-      const excluded = p.offers.filter((x) => x.status === 'declined').map((x) => x.customerId);
-      await this.plan(excluded);
-      this.sendOffers();
-      return o;
-    }
-    o.status = 'accepted';
-    job.compensationChf = o.compensationChf;
-    if (o.mechanism === 'payout') {
-      const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
-      const res = await this.paypal.createPayout(`takt-${p.id}-${job.id}`, 'Thank you for moving your slot', [
-        { receiverEmail, amount: this.money(o.compensationChf), note: `Takt: thank you for moving ${job.id}`, senderItemId: o.id },
-      ]);
-      this.log('api', `Payout to ${c.name}`, `POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
-    } else if (job.payment.kind === 'authorization') {
-      await this.ensureRealAuthorization(job);
-      this.log('agent', `${c.name} accepted`, `Will capture CHF ${job.payment.authorizedChf - o.compensationChf} instead of ${job.payment.authorizedChf} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
-    }
-    if (p.offers.every((x) => x.status === 'accepted')) await this.openRushCheckout();
+    o.decidedBy = 'button';
+    if (accept) this.acceptOffer(o);
+    else await this.declineOffer(o, 'Declined with the button');
     return o;
+  }
+
+  /** Free-text answer from the customer. The agent interprets it; guardrails re-check before anything changes. */
+  async reply(offerId: string, text: string) {
+    const { p, o, c, job } = this.offerCtx(offerId);
+    if (o.status !== 'sent') throw new Error('This offer is already closed');
+    const t = String(text ?? '').trim().slice(0, 2000);
+    if (!t) throw new Error('Empty reply');
+    const ceiling = offerCeiling(p, o, perJobCap(job));
+    const res = await this.agent.reply({ offer: o, customer: c, job, ceilingChf: ceiling, replyText: t, boardStart: this.boardStart });
+    this.state.agent = this.agent.status();
+    o.thread.push({ from: 'customer', text: t, at: new Date().toISOString() });
+    this.log('agent', `Reply from ${c.name}`, `"${t.length > 120 ? t.slice(0, 119) + '…' : t}"`);
+    this.logSteps(res.steps);
+    const d = res.value;
+    const by = res.source === 'live' || res.source === 'replay' ? 'llm' : 'deterministic';
+    const via = this.viaLabel(res.source);
+    const say = () => {
+      if (!d.message) return;
+      // Defence in depth: the shop's message may not promise more than the ceiling, whoever wrote it.
+      if (!checkMessage(d.message, null, ceiling).ok) {
+        this.log('guardrail', 'Message blocked', 'Agent message mentioned an amount above the cap; not sent');
+        return;
+      }
+      o.thread.push({ from: 'shop', text: d.message, textEn: d.messageEn, at: new Date().toISOString() });
+    };
+    switch (d.action) {
+      case 'accept':
+        o.decidedBy = by;
+        say();
+        this.acceptOffer(o, via);
+        break;
+      case 'counter': {
+        const a = checkAmount(d.compensationChf, ceiling);
+        const day = checkDeliveryDay(d.deliveryDay, o.toDay);
+        if (!a.ok || !day.ok) {
+          o.escalation = `Counter blocked by guardrail: ${!a.ok ? a.error : (day as { error: string }).error}`;
+          this.log('guardrail', `Counter from ${c.name} blocked`, o.escalation);
+          break;
+        }
+        this.log('agent', `Counter-offer agreed with ${c.name}`, `${via}: CHF ${o.compensationChf} → CHF ${d.compensationChf}, delivery ${relDay(o.toDay, 'en')} → ${relDay(d.deliveryDay!, 'en')} (cap CHF ${ceiling})`);
+        o.compensationChf = d.compensationChf!;
+        o.toDay = d.deliveryDay!;
+        o.delayDays = o.toDay - o.fromDay;
+        o.decidedBy = by;
+        say();
+        this.acceptOffer(o, via);
+        break;
+      }
+      case 'reply':
+        if (d.compensationChf !== undefined && checkAmount(d.compensationChf, ceiling).ok) o.compensationChf = d.compensationChf;
+        say();
+        this.log('agent', `Answered ${c.name}`, `${via}: ${d.reason}${d.compensationChf !== undefined ? ` (now offering CHF ${o.compensationChf}, cap CHF ${ceiling})` : ''}`);
+        break;
+      case 'decline':
+        o.decidedBy = by;
+        await this.declineOffer(o, `${via}: ${d.reason}`);
+        break;
+      case 'escalate':
+        o.escalation = d.reason;
+        this.log('guardrail', `Escalated to owner: ${c.name}`, `${via}: ${d.reason}. Nothing was changed.`);
+        break;
+    }
+    if (this.state.plan) this.recomputeTotals();
+    return { decision: d, source: res.source };
+  }
+
+  private acceptOffer(o: BumpOffer, via = 'button') {
+    const c = this.cust(o.customerId)!;
+    o.status = 'accepted';
+    o.respondedAt = new Date().toISOString();
+    o.escalation = undefined;
+    this.recomputeTotals();
+    this.log('agent', `${c.name} accepted`, `${via}: +${o.delayDays} day(s) for CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
+    this.maybeRequestApproval();
+  }
+
+  private async declineOffer(o: BumpOffer, why: string) {
+    const p = this.state.plan!;
+    const c = this.cust(o.customerId)!;
+    o.status = 'declined';
+    o.respondedAt = new Date().toISOString();
+    this.log('agent', `${c.name} declined`, `${why}. Re-planning without them`);
+    const old = p.offers;
+    const excluded = old.filter((x) => x.status === 'declined').map((x) => x.customerId);
+    const np = await this.plan(excluded);
+    // Customers who already said yes to the same move keep their agreement.
+    for (const n of np.offers) {
+      const prev = old.find((x) => x.jobId === n.jobId && x.status === 'accepted' && x.toDay === n.toDay);
+      if (prev && prev.compensationChf <= n.capChf) Object.assign(n, { status: 'accepted', compensationChf: prev.compensationChf, thread: prev.thread, decidedBy: prev.decidedBy, respondedAt: prev.respondedAt });
+    }
+    if (np.feasible) {
+      this.recomputeTotals();
+      this.sendOffers();
+    }
+  }
+
+  // ---- 3b. Owner approval: the only door to money moves --------------------------------------------------
+  private caps() {
+    return Object.fromEntries(this.state.jobs.map((j) => [j.id, perJobCap(j)]));
+  }
+
+  private maybeRequestApproval() {
+    const p = this.state.plan;
+    if (!p?.feasible || this.state.stage !== 'offers-sent' || !p.offers.every((o) => o.status === 'accepted')) return;
+    this.recomputeTotals();
+    const moves: MoneyMove[] = p.offers.map((o) => {
+      const c = this.cust(o.customerId)!;
+      const job = this.state.jobs.find((j) => j.id === o.jobId)!;
+      return o.mechanism === 'payout'
+        ? { id: `MV-${o.id}`, kind: 'payout', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v1/payments/payouts', detail: `Now, to the PayPal account on file for ${c.name} (prepaid ${job.id})` }
+        : { id: `MV-${o.id}`, kind: 'capture-less', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v2/payments/authorizations/{id}/capture', detail: `At shipment of ${job.id}: capture CHF ${(job.payment as { authorizedChf: number }).authorizedChf - o.compensationChf} of CHF ${(job.payment as { authorizedChf: number }).authorizedChf}, final_capture=true` };
+    });
+    moves.push({ id: 'MV-RUSH', kind: 'rush-authorize', customerName: this.state.rush!.customer.name, amountChf: p.rushPriceChf, api: 'POST /v2/checkout/orders intent=AUTHORIZE', detail: 'Rush customer approves in PayPal; nothing is charged until the parts ship' });
+    const checks = approvalChecks(p, this.caps());
+    this.state.approval = { moves, checks, status: 'pending' };
+    this.state.stage = 'awaiting-approval';
+    this.log('guardrail', 'Waiting for owner approval', `${moves.length} money move(s); ${checks.filter((c) => c.ok).length}/${checks.length} checks pass. Nothing reaches PayPal before the owner approves.`);
+  }
+
+  async approve() {
+    const p = this.state.plan;
+    const a = this.state.approval;
+    if (!p || !a || this.state.stage !== 'awaiting-approval' || a.status !== 'pending') throw new Error('Nothing to approve');
+    const checks = approvalChecks(p, this.caps());
+    a.checks = checks;
+    const failed = checks.filter((c) => !c.ok);
+    if (failed.length) {
+      this.log('guardrail', 'Approval blocked', failed.map((c) => c.label).join('; '));
+      throw new Error(`Guardrail: ${failed[0].label}`);
+    }
+    a.status = 'approved';
+    this.log('owner', 'Owner approved the money moves', `${a.moves.length} move(s), compensation CHF ${p.compensationTotalChf}, rush CHF ${p.rushPriceChf}`);
+    for (const o of p.offers) {
+      const c = this.cust(o.customerId)!;
+      const job = this.state.jobs.find((j) => j.id === o.jobId)!;
+      job.compensationChf = o.compensationChf;
+      if (o.mechanism === 'payout') {
+        // Payee from the booking record (or the sandbox test account), never from a message.
+        const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
+        const res = await this.paypal.createPayout(`takt-${p.id}-${job.id}`, 'Thank you for moving your slot', [
+          { receiverEmail, amount: this.money(o.compensationChf), note: `Takt: thank you for moving ${job.id}`, senderItemId: o.id },
+        ]);
+        this.log('api', `Payout to ${c.name}`, `POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
+      } else if (job.payment.kind === 'authorization') {
+        await this.ensureRealAuthorization(job);
+        this.log('agent', `Capture-less booked for ${c.name}`, `Will capture CHF ${job.payment.authorizedChf - o.compensationChf} instead of ${job.payment.authorizedChf} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
+      }
+    }
+    await this.openRushCheckout();
   }
 
   // ---- 4. Rush customer pays (authorization) --------------------------------------------------------

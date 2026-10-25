@@ -5,18 +5,22 @@
   "description": "Takt: airline-style voluntary bumping for factory schedules, settled with PayPal.",
   "license": "MIT",
   "type": "module",
-  "engines": { "node": ">=20.19" },
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,green \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc --noEmit && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test server/app.test.ts",
+    "test": "tsx --test server/app.test.ts server/agent/guardrails.test.ts server/agent/agent.test.ts",
+    "agent:eval": "tsx scripts/agent-eval.ts",
     "screenshot": "tsx scripts/screenshot.ts",
     "smoke:sandbox": "tsx scripts/sandbox-smoke.ts",
     "dev:sandbox": "PAYPAL_MODE=sandbox npm run dev"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",
     "tsx": "^4.20.0"

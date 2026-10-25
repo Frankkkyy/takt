@@ -115,6 +115,45 @@ export interface BumpOffer {
   messageEn: string; // English translation for the owner / judges
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   respondedAt?: string;
+  /** Hard cap for this offer (code, not AI): min(per-job cap, what is left of the rush budget). */
+  capChf: number;
+  /** Free-text thread with the customer (customer replies are untrusted input). */
+  thread: OfferMessage[];
+  /** Set when the agent hands the reply to the owner (unclear, over the cap, or looks like manipulation). */
+  escalation?: string;
+  /** How the final answer was reached. */
+  decidedBy?: 'button' | 'llm' | 'deterministic';
+}
+
+export interface OfferMessage {
+  from: 'customer' | 'shop';
+  text: string;
+  textEn?: string;
+  at: string;
+}
+
+/** One bump plan the deterministic planner found (the agent picks one and says why). */
+export interface PlanOptionView {
+  optionId: string;
+  bumps: { jobId: string; customerId: string; delayDays: number; compensationChf: number; mechanism: 'reduced-capture' | 'payout' }[];
+  compensationTotalChf: number;
+  rushPremiumChf: number;
+  netUpliftChf: number;
+}
+
+export interface GuardrailCheck {
+  label: string;
+  ok: boolean;
+}
+
+/** A money move waiting for the shop owner's approval. Nothing reaches PayPal before approval. */
+export interface MoneyMove {
+  id: string;
+  kind: 'payout' | 'capture-less' | 'rush-authorize';
+  customerName: string;
+  amountChf: number;
+  api: string;
+  detail: string;
 }
 
 export interface Plan {
@@ -132,6 +171,13 @@ export interface Plan {
   netUpliftChf: number;
   explanation: string[];
   candidatesEvaluated: number;
+  /** Code-enforced budget: total compensation may not exceed this share of the rush premium. */
+  budgetCapChf: number;
+  options: PlanOptionView[];
+  chosenOptionId: string;
+  /** Owner-facing reason for asking exactly these customers (written by the agent). */
+  justification: string;
+  chosenBy: 'llm' | 'deterministic';
 }
 
 export type PayPalEventType =
@@ -146,7 +192,7 @@ export type PayPalEventType =
 export interface LedgerEvent {
   id: string;
   at: string;
-  source: 'api' | 'webhook' | 'agent' | 'system';
+  source: 'api' | 'webhook' | 'agent' | 'tool' | 'guardrail' | 'owner' | 'system';
   title: string;
   detail: string;
   paypalId?: string;
@@ -158,6 +204,7 @@ export type RushStage =
   | 'intake'
   | 'planned'
   | 'offers-sent'
+  | 'awaiting-approval'
   | 'awaiting-payment'
   | 'committed';
 
@@ -174,5 +221,21 @@ export interface DemoState {
   stage: RushStage;
   ledger: LedgerEvent[];
   yield: { premiumsChf: number; compensationsChf: number; netChf: number; rushJobsWon: number };
+  approval?: { moves: MoneyMove[]; checks: GuardrailCheck[]; status: 'pending' | 'approved' };
   modes: { paypal: 'mock' | 'sandbox'; agent: 'deterministic' | 'llm'; currency: string };
+  agent: AgentStatus;
+}
+
+export interface AgentStatus {
+  /** What is configured: Claude (with deterministic fallback) or rules only. */
+  configured: 'llm' | 'deterministic';
+  model: string;
+  /** How the last agent step actually ran. replay = recorded Claude response for a scripted demo input. */
+  last: 'live' | 'replay' | 'deterministic' | 'fallback' | null;
+  fallbackReason?: string;
+  liveCalls: number;
+  replayCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
 }

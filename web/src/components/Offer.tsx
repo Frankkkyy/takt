@@ -1,27 +1,35 @@
 import { useState } from 'react';
 import type { BumpOffer, DemoState } from '../../../shared/types';
 import { chf, dayShort, post } from '../api';
+import { REPLY_SAMPLES } from '../samples';
 
 const UI = {
-  en: { title: 'Can you wait a little?', accept: 'Accept', decline: 'No, keep my date', from: 'Planned', to: 'New date', you: 'You get', done: 'Thank you! Your new delivery date is confirmed.', no: 'No problem — your date stays.' },
-  de: { title: 'Können Sie etwas warten?', accept: 'Annehmen', decline: 'Nein, Termin behalten', from: 'Geplant', to: 'Neuer Termin', you: 'Sie erhalten', done: 'Danke! Ihr neuer Liefertermin ist bestätigt.', no: 'Kein Problem — Ihr Termin bleibt.' },
-  fr: { title: 'Pouvez-vous patienter un peu ?', accept: 'Accepter', decline: 'Non, garder ma date', from: 'Prévu', to: 'Nouvelle date', you: 'Vous recevez', done: 'Merci ! Votre nouvelle date de livraison est confirmée.', no: 'Pas de souci — votre date reste.' },
+  en: { title: 'Can you wait a little?', accept: 'Accept', decline: 'No, keep my date', from: 'Planned', to: 'New date', you: 'You get', done: 'Thank you! Your new delivery date is confirmed.', no: 'No problem — your date stays.', write: 'Or answer in your own words…', send: 'Send' },
+  de: { title: 'Können Sie etwas warten?', accept: 'Annehmen', decline: 'Nein, Termin behalten', from: 'Geplant', to: 'Neuer Termin', you: 'Sie erhalten', done: 'Danke! Ihr neuer Liefertermin ist bestätigt.', no: 'Kein Problem — Ihr Termin bleibt.', write: 'Oder in eigenen Worten antworten…', send: 'Senden' },
+  fr: { title: 'Pouvez-vous patienter un peu ?', accept: 'Accepter', decline: 'Non, garder ma date', from: 'Prévu', to: 'Nouvelle date', you: 'Vous recevez', done: 'Merci ! Votre nouvelle date de livraison est confirmée.', no: 'Pas de souci — votre date reste.', write: 'Ou répondez avec vos mots…', send: 'Envoyer' },
 };
 
 export function OfferCard({ offer, state, onState }: { offer: BumpOffer; state: DemoState; onState: (s: DemoState) => void }) {
   const [busy, setBusy] = useState(false);
   const [showEn, setShowEn] = useState(false);
+  const [text, setText] = useState('');
+  const [err, setErr] = useState<string | null>(null);
   const t = UI[offer.lang];
   const c = state.customers.find((x) => x.id === offer.customerId);
-  const respond = async (accept: boolean) => {
+  const call = async (path: string, body: unknown) => {
     setBusy(true);
+    setErr(null);
     try {
-      const r = await post(`/api/offers/${offer.id}/respond`, { accept });
+      const r = await post(path, body);
       onState(r.state);
+      setText('');
+    } catch (e) {
+      setErr((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
+  const [first, ...rest] = offer.thread;
   return (
     <div className="phone">
       <div className="phone-notch" />
@@ -29,7 +37,7 @@ export function OfferCard({ offer, state, onState }: { offer: BumpOffer; state: 
         <div className="offer-shop">Werkstatt Reuss · via Takt</div>
         <h3>{t.title}</h3>
         <p className="offer-to">{c?.contact} · {c?.name}</p>
-        <p className="offer-msg">{showEn ? offer.messageEn : offer.message}</p>
+        <p className="offer-msg">{showEn ? first?.textEn ?? offer.messageEn : first?.text ?? offer.message}</p>
         {offer.lang !== 'en' && (
           <button className="link" onClick={() => setShowEn((v) => !v)}>{showEn ? 'Original' : 'Show English'}</button>
         )}
@@ -41,14 +49,36 @@ export function OfferCard({ offer, state, onState }: { offer: BumpOffer; state: 
         <div className="offer-amount"><small>{t.you}</small><b>{chf(offer.compensationChf)}</b>
           <span className="pp-tag">{offer.mechanism === 'reduced-capture' ? 'PayPal · captured less' : 'PayPal Payout'}</span>
         </div>
-        {offer.status === 'sent' && (
-          <div className="offer-actions">
-            <button className="btn primary" disabled={busy} onClick={() => respond(true)}>{t.accept} — {chf(offer.compensationChf)}</button>
-            <button className="btn ghost" disabled={busy} onClick={() => respond(false)}>{t.decline}</button>
+        {rest.length > 0 && (
+          <div className="thread">
+            {rest.map((m, i) => (
+              <div key={i} className={`bubble ${m.from}`}>
+                {showEn && m.textEn ? m.textEn : m.text}
+              </div>
+            ))}
           </div>
+        )}
+        {offer.escalation && <p className="callout warn small">Handed to the owner: {offer.escalation}</p>}
+        {offer.status === 'sent' && (
+          <>
+            <div className="offer-actions">
+              <button className="btn primary" disabled={busy} onClick={() => call(`/api/offers/${offer.id}/respond`, { accept: true })}>{t.accept} — {chf(offer.compensationChf)}</button>
+              <button className="btn ghost" disabled={busy} onClick={() => call(`/api/offers/${offer.id}/respond`, { accept: false })}>{t.decline}</button>
+            </div>
+            <div className="reply">
+              <textarea rows={2} placeholder={t.write} value={text} onChange={(e) => setText(e.target.value)} />
+              <div className="chips">
+                {REPLY_SAMPLES.map((s) => <button key={s.label} className="chip" onClick={() => setText(s.text)}>{s.label}</button>)}
+              </div>
+              <button className="btn small primary send-reply" disabled={busy || !text.trim()} onClick={() => call(`/api/offers/${offer.id}/reply`, { text })}>
+                {busy ? 'Agent is reading…' : t.send}
+              </button>
+            </div>
+          </>
         )}
         {offer.status === 'accepted' && <p className="offer-done">✓ {t.done}</p>}
         {offer.status === 'declined' && <p className="offer-done muted">{t.no}</p>}
+        {err && <p className="callout bad">{err}</p>}
       </div>
     </div>
   );

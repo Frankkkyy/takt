@@ -1,0 +1,48 @@
+{
+ "key": "cdc225f6f1ad84b4bf8a2fdf",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:43.401Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf7GHn5vaXdeFzW1PAG",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "tool_use",
+    "id": "toolu_01DbtFxSLSLMhyHzEV7vGBSC",
+    "name": "reply_to_customer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "proposed_compensation_chf": 70,
+     "message": "Merci pour votre réponse. Le montant demandé dépasse malheureusement ce que nous pouvons offrir. Nous pouvons vous proposer CHF 70 au lieu de CHF 50, livraison mercredi. Acceptez-vous cette proposition ?",
+     "message_en": "Thank you for your reply. The amount requested unfortunately exceeds what we can offer. We can offer CHF 70 instead of CHF 50, with delivery on Wednesday. Do you accept this proposal?"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 609,
+   "cache_read_input_tokens": 2299,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 609,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 293,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

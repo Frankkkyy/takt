@@ -1,0 +1,77 @@
+{
+ "key": "bd300af397dfad31b86fa8b1",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:37.695Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf6eYTkuELrMJR4bxPB",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS7gUKEAgTGAI4AUIIdGhpbmtpbmcSDH234MUwjgVrmZWTfxoMovpXJ5Y8ImKmK0xWIjD7HKYJcHKobHD2SRUy6EmrBZGr6zwqYCpM7PaZeUezy/NOcyvPupXSkSgS7xZHHmkqiwXx/3/3MuPLE9A9SuEenOAAuVZ4uUSRSBuoYuykJ7FO+zBOkPfHRqnR9XbTjPerNkd11zAFXCue53cyd2DfUiEoYYXKET7t2k5QPe2qvc5wjcx3HLfBbNmMEb1OPlR71YiPkQ1TIIfVe6CxlpgnKHgb4tdDnzNuuqNQkPVZrTEDMIDGJ9gD+7gEfuIEhCVcnYd/eP0Z4RcdcKvb3VKikCjYITcFqLAUJUTqJlufth4cqYNmoaSCJRBv3zQS0fofwv3OsUT7IDq2bUMaQ0eCXm/KTdeakwv7o4ulbMmroZKk6hsZub8OXrPfe8R5V3AOCX7IAYF7XWDtrcjgLdkWS9/U4voDYoeqAsTw9IWyCV1nPfkxZNCPaQE5au15CfGmZM46b8VcaEe7vAamhOYEHtmU3Iem7SjUr3+WQpEmTF9LcVSeur/iGCSaq8j+B9o8mwo/5m/ZQzXjIW+NFaa8/fZORM6DD7F03SYssoUOGcUkDeYYrlGPyjrePs5pLfjaMNmIYlb0SZRKuPI07sH2TZ8Fpbr8l3HkaTD3OxsStPliwy+kLQfoc3pjSs3Xz8rrEYFRFNpi1v5e5IemejxtDYpWkNslekeDmKkTM8PyuKrSRg2z8y6abo/zv+IcaR8qd1KEwFD8Sg8PsYjNJz5DJB5iWYCBlw2DvTGkA9OkkdMBNpTsLKXTO4/Kx61kX1pWPxYGlsVQ3vEwBkrfZqU983iqDuvyKrWkY2Z0hTbPbSBAjRvkwK7+DmCFLe7nSDKaKMcmkRPIPwl1dV5xJMPAkVrOi4s6CwnXLEQ3GlqF4StwXeKJ6OHRSmbsc18XQZZFkv1YJe9G0t6wxpUdCbR+iG0CDT9cC82YhL703AAYAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01EYx4KXd2NXyBen2o2KqYWn",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Option 1A is the only feasible plan without Keller, Alpine Drone or Vuilleumier, who are all inflexible. It bumps two jobs by one day each for CHF 100 total, against a rush premium of CHF 685, leaving a net uplift of CHF 585. Brunner Velos said a few days' delay is fine if it saves money, and Studio Meier is prepaid and flexible up to 5 days, so both are low-risk asks."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01CZVDVMVVRHMiXutnJoFRrS",
+    "name": "draft_offer",
+    "input": {
+     "job_id": "J-2042",
+     "message": "Grüezi Frau Brunner\n\nWir müssen einen Eilauftrag für einen Kunden mit einem Notfall einplanen. Dürfen wir Ihren Auftrag J-2042 (Dropout plates) um einen Tag auf Mittwoch verschieben? Als Dank erhalten Sie CHF 55. Der Betrag wird über Ihre bestehende PayPal-Autorisierung als \"Capture less\" verrechnet. Freundliche Grüsse, Werkstatt Reuss",
+     "message_en": "Hello Ms. Brunner, we need to fit a rush job for a customer with an emergency. May we move your job J-2042 (dropout plates) by one day to Wednesday? As thanks you receive CHF 55, charged as a reduced capture on your existing PayPal authorization. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01PR7232WbyeAimBiJrED4Q5",
+    "name": "draft_offer",
+    "input": {
+     "job_id": "J-2047",
+     "message": "Grüezi Frau Meier\n\nWir müssen einen Eilauftrag für einen Kunden mit einem Notfall einplanen. Dürfen wir Ihren Auftrag J-2047 (Lamp shades) um einen Tag auf Donnerstag verschieben? Als Dank erhalten Sie CHF 45 per PayPal-Auszahlung, da Sie bereits vorausbezahlt haben. Freundliche Grüsse, Werkstatt Reuss",
+     "message_en": "Hello Ms. Meier, we need to fit a rush job for a customer with an emergency. May we move your job J-2047 (lamp shades) by one day to Thursday? As thanks you receive CHF 45 by PayPal Payout, since you have prepaid. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2575,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 1019,
+   "output_tokens_details": {
+    "thinking_tokens": 58
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

@@ -1,0 +1,51 @@
+{
+ "key": "318e80252c9a3224121260a1",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:16.327Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf5Ae9RmybENxwpF7JF",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS4QcKEAgTGAI4AUIIdGhpbmtpbmcSDGMGtLVrd51Iyr2CEBoM3RO43andurTr8c7NIjAR0qdGSFQo2dDvKp6QA0qLIfGx521cdHOY9ZWf1VJ1EGCRLu3bexoFGJIzfnCPdqUq/gblsUiS86gfcn4i4p5nMA1fgcZ2ar0IIWydL687is3yatg4n5E2yCbi0uw6jbgMBKdf0yr4IfT+DXJkpI97wy3Z2BAvG5R3/m3kVw0ud2O/jbqqGNSz7CytdSRnws/PKS3RwyOXILbQWzp3eBD7vHhLd4VECRgfuKIfQWd/H2uATSf4amuM/C1V+LF+ZGGaiyJ3NTynUgcB9vUOiz806G6Tz5voaPt7vmjmUnf9hD4bQkkHMEkBEQwNUT80IxL6dmafnXLmYIu7UgLz6Y/JJc6ZW4BBxNr9ufxuq03yu5p24bauvSIjzYJJJlGFfJt2SSkk3lq1E/gmAQOKN3p6Kd3SIpb70sbIj+0WRIdFE1IL9vmU2Cs9PLXhNoibw79Uf75WMMuGM08FvF3IngMQAMyX79Lzsg/u93jndjnYvB3L+xRGDIljmd+iP3uuLglEMPFu70g2fz23KrqrXj0iC9jbJr5ttFdA/NJDLIz0ZWIDB/qdqbce5XsnnDLcPUsM77caeL3rzkKnya6QyEWlnGjIDfXCU5XCekyyV5eqKEJSFF3wn6YHdtJtyV0Qhe6IVVlNzs+TXBc3rlT8fluFV8Q0nQ1/ahu3odZ7zZytbHe5lGGI9zE14f0ne7ffL9dtXfZz5SwWohsygLaJeEFhLxEab+WUE37pQPM4hlmHomxVlO2KRLoVrWyv29STrvxYHk6Uf6udvIjjJl3uS3Bi6zA80DUWBbO+cNJ+U1r4IledKvW8g8vq3TcDZNuwMkX+W82ZzvYjtrOPubDqepcqFaBMi5r6ED6Psq54HttCygFXITwwFOjcR6RvAliL/VjmOoclhi1uoQnWm+SERlcz2QHnS35McAkz8MmIkE3UHXLfAJcPV/8tKAhWJ1ZiGQo3c2EFFTDyF4pi3kvphDGaptzla0LS+UB1/yAEikf43FAfEYiG1aFpRsznRoL6aDptUMNg+ySuJXhS2AEOjfJPb6zzHmiJwaI/iBLNKDb0/bKnRh47ci7DuvLlsXgI2Ef2MLx8v0PlgrbHttJpFCPpE18xJZNMm5dhjCRBWjbgZdNAF5BjHDFaW023r9+cqmajWiwqrHvgZVzV0wK6747CLnkqp6+sRHHdnLx+TXihsGAJJbgjX1ll5hdMqtZu67XpFgkYoHVqCl8nd3xdvAxyrwxLttR9R9zSG/1flcCcC34YAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01KViKduZuKcM7T1N9Gki7cj",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Option 1A is the cheapest feasible plan: total compensation CHF 95 and net uplift CHF 590 on the CHF 685 rush premium. It bumps Atelier Rochat (flexible up to 4 days, 1-day delay, CHF 50 via capture less) and Studio Meier Licht (flexible up to 5 days, 1-day delay, CHF 45 via payout, already prepaid), and neither has a hard deadline this week. Keller, Alpine Drone and Vuilleumier are not flexible and were not asked."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2838,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 424,
+   "output_tokens_details": {
+    "thinking_tokens": 168
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

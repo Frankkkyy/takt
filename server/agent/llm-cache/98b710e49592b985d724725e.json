@@ -1,0 +1,53 @@
+{
+ "key": "98b710e49592b985d724725e",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:41.258Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf713zSq9A2Qqg149Tk",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSnAoKEAgTGAI4AUIIdGhpbmtpbmcSDN4TbQtTiRv4XUk5ARoMvQA0Eula0KGJcL/WIjB4BH4FZo9nhmn12XYt3rwFCe+qs6CBjCmHIxeSm37W/Fm2lNueGthqssx88veSpE8quQm4joloaYbnKmLWEa0u8BnygmJ3bCV7QYMyDWF8l7aSRfkd/NXP+swcxC/jYiIRv7nC/xvaKQ9J7yaJZyg5Am6D49OayY1GFe7dLbebDZ62wvwbKrdgjhp4Bcu+nikXLLA7sYFx0z5DCETMPZrE+RTWyWCMbAFc50oVUaWaY8WhW8bbbPXJIv9fGYkUr7VdgvzoPjnUh9KwKcqgxRu8idJSOOq+n5aac2asZVOTe6KC6ZtfnziG2m7j257Yy/mjxyw2lO1Z8TdJwAMHSbRS9MM4ELJvOC0+Tc6T5DNnjGFRWJmC47ZjYHjA1G4fSEN5rWU35ojDRnVId9Qytx7i2LSlzlFL4wJ7aKVJK7iqNgN8IxsY4J89E/effmUey++4XQRQKX7lkPHBvafp+h8mmIDLjD4QhYZKIIbCReTh8q0208lL+sjvpHkg4MkvMqqnE/FgexnU7ssJjOFsqCdqb9IkxHfF0+KZSSmPBHbk99j0/YAxHV5fQsTIyemd7obeWeQ5M+enbM4RJx/VijiZU1AWYWmI3gBhRI34FvV7DGutybnVgb5AC9+i2VV+PcfkSaYNQpCwgxoTNH5+TMeR1sIB+vYmB3Nt+pP7Ywopt4N4T//7k0E20ePBipYJL/Sil33zsd1Q6E0Qt/rpNTsmKTTWdoWGN9o/8O2iQiEQhOnCIpp6f9Q5pCZgyIrNXN22EiR9n0hP4qasfuqM05knIhfzcI52o68y0vnjF76MMo8uwAUEl7nfC8KR38Pb9w68mpV+u8bDrmE72mIRpkKwl/zQ2qofuzHTu5ewd7TRt+fsQMZ1pBv8dfDJ0ULiV4llcmrLmGTzL2uuN3KPxLc3zZDHimSIaTm8eAbrppcssFzHelP5qCUvKGlHILGIPxns04Dvm7fO/lrclYwZOisw6NZs41Jyg8dpAUsb4tyt5Y40kz/Zko01U5TFzlGmfYUK8EVrGoH6Nvyh6wRw5Lwj05O7vHaRXUYPkchSaTcAmunzCxk5iWZIALrRu+YCevmca7L52XLO766xswOOSixTi85B3RYoypn0q8sshJoEp+JhOeHOmffBgiHB6o5oucTmXla9RJXit5HtEaLQqrxJdU33k6hfFG4WKTsDskvgIc/bhLyWBorTVFt9FYHdAWbmjCwhBM4rlBnRjbuJuYzgRqn5//RF30lSrh5ZPM6/ZzZZidjlodKytMFHj48JtTq7cDk7TLNENJrrW6wa0IYq7VLsNbcgJoSxoPB5msUv/2grD+sL/zDGnRC9ZIW0xvtfquUvZ+2EpTZPe5DAXgIx+3xckPr/dali65Tyn4OPkxmwPCDW1YUE7f/heKywECXmBUg5V044S+g60E5vjCgjhqbdwkTsH8pecIkyhYTkorR7H09teLnsdrvYz6xXZpUq0vyuiQu/wCHy84RIfkutMrhaGiTFC4jjyHYNBEVCwfCotvkPpumfMMHtLcAZso90hQtI2DPrWNqHHSJlje44NL2GzxWxwIk0KBd24O0IlsLTZiKBBDQl9TY18hW9wQlp2Jc5s1rGoN7VpxAWwCueziedXHA+ZSU4iHBqm30aA1dptlPPzMw5fVkURliyz+dqTkxP81rfXD/cKwEYAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01QysbnHrsnoGaxfTbQEhorZ",
+    "name": "reply_to_customer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "proposed_compensation_chf": 70,
+     "message": "Merci pour votre réponse. Un montant de CHF 900 dépasse malheureusement ce que nous pouvons offrir. Nous pouvons vous proposer CHF 70 au lieu de CHF 50, livraison mercredi. Acceptez-vous cette proposition ?",
+     "message_en": "Thank you for your reply. An amount of CHF 900 unfortunately exceeds what we can offer. We can offer CHF 70 instead of CHF 50, with delivery on Wednesday. Do you accept this proposal?"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2299,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2299,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 576,
+   "output_tokens_details": {
+    "thinking_tokens": 273
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

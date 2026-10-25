@@ -1,0 +1,55 @@
+{
+ "key": "55462852e87d7ee70f6e13ba",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T21:22:00.056Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPf46VaotYuiY2w7FTbM",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "tool_use",
+    "id": "toolu_01W8y85pQS4Z9AGmAsxmMVa2",
+    "name": "record_rush_job",
+    "input": {
+     "customer_name": "Hof Schmid",
+     "contact_name": "Thomas Schmid",
+     "city": "Escholzmatt",
+     "language": "de",
+     "part_family": "bracket",
+     "part_title": "Header brackets for combine harvester",
+     "quantity": 6,
+     "material_grade": "S355",
+     "thickness_mm": 8,
+     "due_day": 1,
+     "notes": "Cracked brackets on combine header; needed by Tuesday because harvest starts Wednesday. Photo attached (not reviewed)."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 1686,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 358,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

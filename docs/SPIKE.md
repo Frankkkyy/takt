@@ -249,10 +249,19 @@ Run against `api-m.sandbox.paypal.com` with the app's own sandbox credentials (k
 ### Webhooks
 Not used for now. After every money move, `RestPayPal` polls the resource (order until `APPROVED`, authorization, payout batch until each item is final). It then dispatches a webhook-shaped event with id `RECON-…` into the same `onEvent` handler that verified webhooks use. The schedule still commits only when PayPal confirms. Real webhooks and signature checks: once hosted on Render.
 
+### Re-run with the sandbox personal account (25 Oct 2026, evening)
+Francisco added `PAYPAL_SANDBOX_PAYOUT_RECEIVER` and `PAYPAL_SANDBOX_BUYER_EMAIL` / `PAYPAL_SANDBOX_BUYER_PASSWORD` to the workspace `.env` (single-quoted values; `dotenv` reads them correctly). `npm run smoke:sandbox` passed **14 of 14**:
+- **Buyer approval with the PayPal wallet login works:** the order went `PAYER_ACTION_REQUIRED` → `APPROVED` with the payer being the sandbox personal account (`…@personal.example.com`), no guest card form.
+- **The payout item now ends `SUCCESS`** (not `UNCLAIMED`): batch `SUCCESS` after about 23 s, fee CHF 0.90.
+
 ### Blockers and to-dos
-1. **Francisco:** copy the default sandbox **personal** account's email (and password, for recording the video) from Testing Tools > Sandbox Accounts into the workspace `.env`:
-   - `PAYPAL_SANDBOX_PAYOUT_RECEIVER`
-   - `PAYPAL_SANDBOX_BUYER_EMAIL` / `PAYPAL_SANDBOX_BUYER_PASSWORD`
-   With those, payouts end `SUCCESS` and the wallet approval is recorded instead of the guest card form.
+1. ~~Sandbox personal account for payouts and wallet approval~~: done, see above.
 2. JS SDK v6 popup button (`onApprove` → `/api/rush/authorize`) to replace the redirect link.
 3. Webhook signature verification: test once hosted.
+
+## Runtime LLM verification (25 Oct 2026)
+
+- `claude-haiku-5-5` through `@anthropic-ai/sdk@1.3.0` (`client.messages.create`), with strict custom tools, adaptive thinking at effort `low`, and top-level `cache_control`. The key is in the workspace `.env` and is never committed.
+- `npm run agent:eval -- --live`: **13 of 13 cases passed**, with 20 live calls, about 48.5k input and 8.2k output tokens, for **USD 0.007**. Details are in `docs/AGENT_EVAL.md`.
+- Total API spend during development (five eval runs, including prompt tuning and re-recording) is about **USD 0.04** of the USD 5 credit.
+- Haiku 5.5 accepts forced `tool_choice`, but then skips thinking. We use `auto` plus prompt steering, and code enforces "exactly one terminal tool".
