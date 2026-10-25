@@ -18,8 +18,10 @@ export interface CreateAuthorizeOrderInput {
 
 export interface OrderResult {
   orderId: string;
-  status: string; // CREATED | APPROVED | COMPLETED
+  /** Sandbox-verified 2026-10-25: a PayPal-wallet order starts as PAYER_ACTION_REQUIRED (not CREATED), then APPROVED, then COMPLETED. */
+  status: string; // PAYER_ACTION_REQUIRED | CREATED | APPROVED | COMPLETED
   approveUrl?: string;
+  payerEmail?: string;
 }
 
 export interface AuthorizationResult {
@@ -56,9 +58,20 @@ export interface PayoutItemInput {
   senderItemId: string;
 }
 
+export interface PayoutItemStatus {
+  payoutItemId: string;
+  senderItemId?: string;
+  receiver?: string;
+  /** SUCCESS | UNCLAIMED | PENDING | ONHOLD | FAILED | RETURNED | BLOCKED | REFUNDED | DENIED */
+  status: string;
+  errorName?: string;
+  fee?: Money;
+}
+
 export interface PayoutResult {
   payoutBatchId: string;
-  batchStatus: string; // PENDING | PROCESSING | SUCCESS | DENIED
+  batchStatus: string; // PENDING | PROCESSING | SUCCESS | DENIED | CANCELED
+  items?: PayoutItemStatus[];
 }
 
 /** A webhook-shaped event. In mock mode the gateway generates these; in sandbox mode PayPal POSTs them. */
@@ -79,6 +92,12 @@ export interface PayPalGateway {
   /** Mock only: simulates the buyer approving in the PayPal popup. In sandbox the JS SDK does this. */
   simulateBuyerApproval?(orderId: string): Promise<void>;
   authorizeOrder(orderId: string): Promise<AuthorizationResult>;
+  getAuthorization(authorizationId: string): Promise<AuthorizationResult>;
+  /**
+   * Sandbox seeding only: an AUTHORIZE order funded by a sandbox test card (payment_source.card), which PayPal
+   * authorizes immediately without a buyer step. Gives the seeded bookings real authorizations to capture/void.
+   */
+  createCardAuthorization?(input: CreateAuthorizeOrderInput): Promise<AuthorizationResult>;
   captureAuthorization(authorizationId: string, input: CaptureInput): Promise<CaptureResult>;
   voidAuthorization(authorizationId: string): Promise<{ status: string }>;
   reauthorize(authorizationId: string, amount: Money): Promise<AuthorizationResult>;

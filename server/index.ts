@@ -11,7 +11,11 @@ import { createNegotiator } from './agent/negotiator.js';
 import { TaktApp } from './app.js';
 
 const paypal = createPayPal();
-const app = new TaktApp(paypal, createNegotiator(), process.env.PAYPAL_CURRENCY ?? 'CHF');
+const publicBase = process.env.PUBLIC_BASE_URL ?? 'http://localhost:5173';
+const app = new TaktApp(paypal, createNegotiator(), process.env.PAYPAL_CURRENCY ?? 'CHF', {
+  returnUrl: `${publicBase}/api/paypal/return`,
+  payoutReceiver: process.env.PAYPAL_SANDBOX_PAYOUT_RECEIVER || undefined,
+});
 const server = express();
 
 // Webhook needs the raw body for signature verification -> register before json parser.
@@ -49,6 +53,15 @@ server.post('/api/offers/:id/respond', wrap((req) => app.respond(String(req.para
 server.post('/api/rush/mock-approve', wrap(() => app.mockApprove()));
 // Sandbox: JS SDK onApprove -> server authorizes the order (commit still waits for the webhook / reconcile).
 server.post('/api/rush/authorize', wrap((req) => app.authorizeRush(String(req.body?.orderId ?? ''))));
+// Sandbox redirect flow: PayPal sends the buyer back here with ?token={orderId} after approval.
+server.get('/api/paypal/return', async (req, res) => {
+  try {
+    await app.authorizeRush(String(req.query.token ?? ''));
+  } catch (e) {
+    console.error('authorize on return failed:', e instanceof Error ? e.message : e);
+  }
+  res.redirect('/');
+});
 server.post('/api/jobs/:id/ship', wrap((req) => app.ship(String(req.params.id))));
 server.post('/api/jobs/:id/cancel', wrap((req) => app.cancel(String(req.params.id))));
 

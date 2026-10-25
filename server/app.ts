@@ -22,7 +22,17 @@ export class TaktApp {
   private n = 0;
   private pending?: { order: Job[]; rushJob: Job };
 
-  constructor(private paypal: PayPalGateway, private agent: Negotiator, private currency = SHOP.currency) {
+  constructor(
+    private paypal: PayPalGateway,
+    private agent: Negotiator,
+    private currency = SHOP.currency,
+    private opts: {
+      /** Sandbox: PayPal redirects the rush buyer here after approval (GET /api/paypal/return). */
+      returnUrl?: string;
+      /** Sandbox: seeded customers have fake emails, so payouts go to this sandbox personal account instead. */
+      payoutReceiver?: string;
+    } = {},
+  ) {
     paypal.onEvent((e) => void this.onPayPalEvent(e).catch((err) => this.log('system', 'Webhook handling failed', String(err))));
     this.reset();
   }
@@ -56,6 +66,23 @@ export class TaktApp {
   }
 
   private money(v: number) { return { currency: this.currency, value: v }; }
+
+  /**
+   * Sandbox only: seeded bookings carry placeholder SEED-AUTH ids. Before Takt touches one, it gets a real sandbox
+   * authorization for the same amount (AUTHORIZE order funded by PayPal's test card, no buyer step).
+   */
+  private async ensureRealAuthorization(job: Job) {
+    if (job.payment.kind !== 'authorization' || !job.payment.authorizationId.startsWith('SEED-AUTH')) return;
+    if (this.paypal.mode !== 'sandbox' || !this.paypal.createCardAuthorization) return;
+    const a = await this.paypal.createCardAuthorization({
+      referenceId: job.id,
+      invoiceId: `TAKT-${job.id}-${Date.now().toString(36)}`,
+      description: `Booking ${job.id}: ${job.qty}x ${job.title}`,
+      amount: this.money(job.payment.authorizedChf),
+    });
+    job.payment = { ...job.payment, orderId: a.orderId, authorizationId: a.authorizationId };
+    this.log('api', `Sandbox booking authorization for ${job.id}`, `Seeded with a sandbox test card: POST /v2/checkout/orders intent=AUTHORIZE → ${a.status}, valid until ${a.expirationTime?.slice(0, 10)}`, a.authorizationId, a.amount.value);
+  }
   private cust(id: string) { return this.state.customers.find((c) => c.id === id); }
 
   // ---- 1. Intake -----------------------------------------------------------------------------------
@@ -157,11 +184,13 @@ export class TaktApp {
     o.status = 'accepted';
     job.compensationChf = o.compensationChf;
     if (o.mechanism === 'payout') {
+      const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
       const res = await this.paypal.createPayout(`takt-${p.id}-${job.id}`, 'Thank you for moving your slot', [
-        { receiverEmail: c.email, amount: this.money(o.compensationChf), note: `Takt: thank you for moving ${job.id}`, senderItemId: o.id },
+        { receiverEmail, amount: this.money(o.compensationChf), note: `Takt: thank you for moving ${job.id}`, senderItemId: o.id },
       ]);
       this.log('api', `Payout to ${c.name}`, `POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
     } else if (job.payment.kind === 'authorization') {
+      await this.ensureRealAuthorization(job);
       this.log('agent', `${c.name} accepted`, `Will capture CHF ${job.payment.authorizedChf - o.compensationChf} instead of ${job.payment.authorizedChf} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
     }
     if (p.offers.every((x) => x.status === 'accepted')) await this.openRushCheckout();
@@ -169,7 +198,16 @@ export class TaktApp {
   }
 
   // ---- 4. Rush customer pays (authorization) --------------------------------------------------------
+  private checkout?: { planId: string; order: Promise<unknown> };
+
+  /** Idempotent per plan: concurrent "accept" calls (slow sandbox round-trips) must not open two rush orders. */
   async openRushCheckout() {
+    const planId = this.state.plan!.id;
+    if (this.checkout?.planId !== planId) this.checkout = { planId, order: this.createRushOrder().catch((e) => { this.checkout = undefined; throw e; }) };
+    return this.checkout.order;
+  }
+
+  private async createRushOrder() {
     const p = this.state.plan!;
     const rush = this.state.rush!;
     const order = await this.paypal.createAuthorizeOrder({
@@ -177,8 +215,9 @@ export class TaktApp {
       invoiceId: `TAKT-${rush.id}-${Date.now().toString(36)}`,
       description: `Rush: ${rush.qty}x ${rush.title}`,
       amount: this.money(p.rushPriceChf),
+      returnUrl: this.opts.returnUrl,
     });
-    this.state.rushOrder = { orderId: order.orderId, status: 'created', amountChf: p.rushPriceChf };
+    this.state.rushOrder = { orderId: order.orderId, status: 'created', amountChf: p.rushPriceChf, approveUrl: order.approveUrl };
     this.state.stage = 'awaiting-payment';
     this.log('api', 'Rush order created', `POST /v2/checkout/orders intent=AUTHORIZE CHF ${p.rushPriceChf}`, order.orderId, p.rushPriceChf);
     return order;
@@ -193,9 +232,16 @@ export class TaktApp {
 
   async authorizeRush(orderId: string) {
     const o = this.state.rushOrder;
-    if (!o || o.orderId !== orderId || o.status === 'authorized') return;
+    // Return-URL redirect and the reconcile poll can both arrive: only the first one authorizes.
+    if (!o || o.orderId !== orderId || o.status !== 'created') return;
     o.status = 'approved';
-    const a = await this.paypal.authorizeOrder(orderId);
+    let a;
+    try {
+      a = await this.paypal.authorizeOrder(orderId);
+    } catch (err) {
+      o.status = 'created';
+      throw err;
+    }
     o.authorizationId = a.authorizationId;
     this.log('api', 'Rush payment authorized', `POST /v2/checkout/orders/{id}/authorize → ${a.status}; nothing charged until shipment`, a.authorizationId, a.amount.value);
     // Commit happens on the PAYMENT.AUTHORIZATION.CREATED webhook, not here.
@@ -216,6 +262,9 @@ export class TaktApp {
     if (e.event_type === 'PAYMENT.PAYOUTS-ITEM.SUCCEEDED') {
       const offerId = r.payout_item?.sender_item_id;
       this.log('system', 'Compensation delivered', `Payout for ${offerId} settled`, r.payout_batch_id);
+    }
+    if (e.event_type === 'PAYMENT.PAYOUTS-ITEM.UNCLAIMED') {
+      this.log('system', 'Payout unclaimed', `${r.payout_item?.receiver ?? 'Receiver'} has no PayPal account yet (${r.errors?.name ?? 'UNCLAIMED'}); PayPal emails a claim link and returns the money after 30 days`, r.payout_batch_id);
     }
   }
 
@@ -243,13 +292,14 @@ export class TaktApp {
     this.state.yield.compensationsChf += p.compensationTotalChf;
     this.state.yield.netChf += p.netUpliftChf;
     this.state.yield.rushJobsWon += 1;
-    this.log('system', 'Schedule committed', `Confirmed by PayPal webhook. Net uplift CHF ${p.netUpliftChf}`, o.authorizationId, p.netUpliftChf);
+    this.log('system', 'Schedule committed', `Confirmed by PayPal (webhook or reconcile poll). Net uplift CHF ${p.netUpliftChf}`, o.authorizationId, p.netUpliftChf);
   }
 
   // ---- 5. Settle ------------------------------------------------------------------------------------
   async ship(jobId: string) {
     const j = this.state.jobs.find((x) => x.id === jobId);
     if (!j || j.status !== 'booked') throw new Error('Job not shippable');
+    await this.ensureRealAuthorization(j);
     if (j.payment.kind === 'authorization') {
       const comp = j.compensationChf ?? 0;
       const amount = j.payment.authorizedChf - comp;
@@ -269,6 +319,7 @@ export class TaktApp {
   async cancel(jobId: string) {
     const j = this.state.jobs.find((x) => x.id === jobId);
     if (!j || j.status !== 'booked') throw new Error('Job not cancellable');
+    await this.ensureRealAuthorization(j);
     if (j.payment.kind === 'authorization') {
       await this.paypal.voidAuthorization(j.payment.authorizationId);
       this.log('api', `Voided ${j.id}`, 'POST /v2/payments/authorizations/{id}/void', j.payment.authorizationId);

@@ -113,9 +113,16 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
             </button>
           )}
           {stage === 'awaiting-payment' && state.modes.paypal === 'sandbox' && (
-            <div id="paypal-button" className="muted">PayPal JS SDK v6 button goes here (sandbox).</div>
+            // Redirect approval on the real PayPal sandbox; the server reconciles by polling the order.
+            // (JS SDK v6 popup button replaces this link in phase 2.)
+            state.rushOrder?.approveUrl ? (
+              <a id="paypal-approve" className="btn paypal" href={state.rushOrder.approveUrl} target="_blank" rel="noreferrer">
+                Pay with PayPal <small>(sandbox)</small>
+              </a>
+            ) : <p className="muted">Creating PayPal order…</p>
           )}
-          {stage === 'awaiting-payment' && state.rushOrder?.status !== 'created' && <p className="muted">Waiting for PayPal webhook…</p>}
+          {stage === 'awaiting-payment' && state.rushOrder?.status !== 'created' && <p className="muted">Waiting for PayPal to confirm…</p>}
+          {stage === 'awaiting-payment' && state.modes.paypal === 'sandbox' && state.rushOrder?.status === 'created' && <p className="muted">Waiting for the buyer to approve in PayPal…</p>}
           {stage === 'committed' && (
             <>
               <p className="callout good">Confirmed by PayPal. Nobody let down: {plan.offers.length} customer(s) agreed and are compensated.</p>

@@ -1,13 +1,13 @@
 # Takt — tech spike (24 Oct 2026)
 
-I checked everything below against current official docs, npm and the API schemas on 24 Oct 2026. Nothing has run against the PayPal sandbox yet, because the credentials don't exist yet. The section "Day-1 checks" lists what to test first.
+I checked everything below against current official docs, npm and the API schemas on 24 Oct 2026. On **25 Oct 2026** the PayPal part ran against the real sandbox; see **"Sandbox verification (25 Oct 2026)"** at the end. `npm run smoke:sandbox` repeats it (14/14 checks passed).
 
 ## TL;DR: decisions and blockers
 
 | Topic | Conclusion | Blocker? |
 |---|---|---|
-| Compensation mechanics | **Capture less:** one `capture` of (authorized − compensation) with `final_capture:true`. It works on the same day and the customer doesn't need to approve again. **Payout** is only for customers who already paid in full. Void-and-new-order is a last resort, because the buyer must approve again. | No (verify that the remainder is released) |
-| CHF | Listed as a supported currency. Payouts need the sender's balance in CHF. The default sandbox accounts are US/USD. | **Maybe:** we may need CH sandbox accounts. Fallback: EUR/USD |
+| Compensation mechanics | **Capture less:** one `capture` of (authorized − compensation) with `final_capture:true`. It works on the same day and the customer doesn't need to approve again. **Payout** is only for customers who already paid in full. Void-and-new-order is a last resort, because the buyer must approve again. | **No. Verified 25 Oct:** the authorization ends `CAPTURED` and a further capture is refused |
+| CHF | Orders, authorizations, captures, refunds and payouts all work in CHF. The sandbox business account settles in EUR and converts; it needs **no** CHF balance. | **No. Verified 25 Oct** |
 | Reauthorize | Blocked during the 3-day honor period, so we can't show it in the video. It stays as code plus README. | No |
 | Agent Toolkit | `@paypal/agent-toolkit@1.11.0` has **no** Payouts, capture-authorization, void or reauthorize tools. Its `create_order` hardcodes `intent:"CAPTURE"`. | No: our own typed tools behind the same policy wrapper |
 | JS SDK | v6 web SDK. `clientId` in the browser is OK. Server creates the AUTHORIZE order, then `onApprove` hands over to the server, which calls `/authorize`. | Low (the docs sample uses CAPTURE; test AUTHORIZE) |
@@ -198,10 +198,61 @@ Estimate: 2,000 calls × 3k tokens in / 500 out = 6 MTok in and 1 MTok out.
 2. Webhooks are treated as confirmations, not the only source of truth. The app reconciles by polling `GET` order / authorization / payout. The UI already polls state every 1 s.
 3. Webhooks are processed idempotently by event id.
 
-## Day-1 checks (once `.env` has sandbox credentials)
+## Sandbox verification (25 Oct 2026)
 
-1. Does a CHF AUTHORIZE order work, and its capture, with the default sandbox accounts? If not, create CH business and personal accounts, or switch `PAYPAL_CURRENCY=EUR`.
-2. Capture less than authorized with `final_capture:true`: the authorization should end `CAPTURED` with the rest released.
-3. Does a CHF Payout work from the sandbox business balance? If not, use USD or EUR.
-4. Does JS SDK v6 `onApprove` work with an AUTHORIZE order?
-5. Webhook verify: confirm the response field name, and test via a tunnel or once hosted.
+Run against `api-m.sandbox.paypal.com` with the app's own sandbox credentials (kept in the workspace `.env`, never in this repo). Reproduce with `npm run smoke:sandbox`. The last run passed 14 of 14 checks. The live app in `npm run dev:sandbox` also completed the whole demo: screenshots are in `docs/screenshots/sandbox/`.
+
+### Day-1 checks: results
+
+| # | Question | Result |
+|---|---|---|
+| 1 | CHF AUTHORIZE order, then capture | **Works.** See "Orders v2" below. |
+| 2 | Capture less with `final_capture:true` releases the rest | **Works.** Authorized CHF 2150, captured 2100: capture `COMPLETED`, authorization `CAPTURED`. A further capture fails with `422 AUTHORIZATION_ALREADY_CAPTURED`, so the CHF 50 can't be taken later. |
+| 3 | CHF Payout from the sandbox business balance | **Works without a CHF balance.** PayPal converted EUR 51.38 to CHF 45.90 (CHF 45 plus a CHF 0.90 fee). |
+| 4 | JS SDK v6 `onApprove` with an AUTHORIZE order | **Not tested yet.** The redirect approval (`payer-action` link) works and is what the app uses now. |
+| 5 | Webhook verification field name | **Not tested.** Not needed now: the app reconciles by polling. Test once hosted, or through a tunnel. |
+
+### Sandbox accounts
+- **Business (payee):** `sb-m9rlt53529812@business.example.com`, merchant id `RV856RCW9WEJ4`. It's read from `purchase_units[0].payee` in any order response. Its primary currency is **EUR**: captures in CHF settle as EUR, e.g. `receivable_amount` EUR 639.35, fee CHF 20.65.
+- **Personal (buyer):** there is **no API to list or create sandbox accounts.** The token has no such scope, and `/v1/reporting/balances` returns 403 `NOT_AUTHORIZED`. Francisco must copy the default personal account's email from developer.paypal.com > Testing Tools > Sandbox Accounts.
+- I created **no accounts.** On the CH guest-checkout page, "open a PayPal account" asks for a password, birth date and ID number, so I didn't use it.
+
+### Orders v2 with intent AUTHORIZE (CHF)
+- **A wallet order starts as `PAYER_ACTION_REQUIRED`, not `CREATED`.** The approval link has `rel: "payer-action"` and points to `https://www.sandbox.paypal.com/checkoutnow?token={orderId}`.
+- **Buyer approval is automated in headless Chromium** (`scripts/paypal-approve.ts`):
+  - It uses the guest option "Mit Kredit- oder Debitkarte zahlen" with test card **4005519200000004**.
+  - Cards 4032039317984658 and 5555555555554444 are rejected there ("Wir konnten Ihre Karte nicht hinzufügen").
+  - The order then moves to `APPROVED`. The payer is a guest (`account_status: UNVERIFIED`, country CH).
+  - PayPal redirects to `return_url?token={orderId}&PayerID=…`, and `http://localhost` return URLs work.
+- **Flaky: PayPal A/B-tests the card page.** One variant has "Nein danke" (guest); the other forces account creation. The helper detects the forced-signup variant and retries in a fresh browser context.
+  - A failed or abandoned attempt can break that order: it then shows `checkoutweb/genericError?code=DEFAULT`.
+  - So create a new order when that happens.
+  - For the video, use a real sandbox personal account. Set `PAYPAL_SANDBOX_BUYER_EMAIL/PASSWORD`, and the helper logs in instead.
+- **`POST /v2/checkout/orders/{id}/authorize`** returns `COMPLETED`, with `purchase_units[0].payments.authorizations[0]` = `{id, status: "CREATED", amount, expiration_time}`. **`expiration_time` is +29 days.**
+- **A card-funded order needs no buyer step:** `payment_source.card` with test Visa 4032039317984658 returns `201 COMPLETED` with the authorization already `CREATED`. The app uses this **only to give the seeded bookings real authorizations** (`createCardAuthorization`), and logs it as such.
+
+### Payments v2
+| Call | Result |
+|---|---|
+| Capture | `201`; `status COMPLETED`, `final_capture`, and `seller_receivable_breakdown` with fee and FX |
+| Void | With `Prefer: return=representation`: `200` and the authorization with `status: "VOIDED"`. Without it, the docs say `204` |
+| Refund (partial CHF 30, CHF 20) | `201`, `status COMPLETED` |
+| Reauthorize on day 0 | `422 REAUTHORIZATION_TOO_SOON`: "only allowed once from Day 4 to Day 29". As expected: it can't be shown in the video |
+
+### Payouts v1 (CHF)
+- `POST /v1/payments/payouts` returns `201` with `batch_status: PENDING`.
+- Polling `GET /v1/payments/payouts/{id}`: `PENDING`, then `PROCESSING` after about 10 s, then `SUCCESS` after about 20–30 s.
+- To an email with **no** PayPal account, the item ends `UNCLAIMED`, `errors.name: RECEIVER_UNREGISTERED`. PayPal emails a claim link and returns the money after 30 days. The batch is still `SUCCESS`.
+- A guest checkout payer email is also `RECEIVER_UNREGISTERED`.
+- A payout that ends with item `SUCCESS` needs a **sandbox personal account email** in `PAYPAL_SANDBOX_PAYOUT_RECEIVER`. That run is **still to do** once Francisco provides the email.
+
+### Webhooks
+Not used for now. After every money move, `RestPayPal` polls the resource (order until `APPROVED`, authorization, payout batch until each item is final). It then dispatches a webhook-shaped event with id `RECON-…` into the same `onEvent` handler that verified webhooks use. The schedule still commits only when PayPal confirms. Real webhooks and signature checks: once hosted on Render.
+
+### Blockers and to-dos
+1. **Francisco:** copy the default sandbox **personal** account's email (and password, for recording the video) from Testing Tools > Sandbox Accounts into the workspace `.env`:
+   - `PAYPAL_SANDBOX_PAYOUT_RECEIVER`
+   - `PAYPAL_SANDBOX_BUYER_EMAIL` / `PAYPAL_SANDBOX_BUYER_PASSWORD`
+   With those, payouts end `SUCCESS` and the wallet approval is recorded instead of the guest card form.
+2. JS SDK v6 popup button (`onApprove` → `/api/rush/authorize`) to replace the redirect link.
+3. Webhook signature verification: test once hosted.

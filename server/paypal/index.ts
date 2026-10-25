@@ -8,7 +8,7 @@ export function createPayPal(env = process.env): PayPalGateway {
   const mode = env.PAYPAL_MODE ?? (id && secret ? 'sandbox' : 'mock');
   if (mode === 'sandbox') {
     if (!id || !secret) throw new Error('PAYPAL_MODE=sandbox needs PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in .env');
-    return new RestPayPal(id, secret, env.PAYPAL_WEBHOOK_ID);
+    return new RestPayPal(id, secret, { webhookId: env.PAYPAL_WEBHOOK_ID });
   }
   return new MockPayPal(Number(env.MOCK_PAYPAL_DELAY_MS ?? 700));
 }

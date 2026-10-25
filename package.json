@@ -12,7 +12,9 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test server/app.test.ts",
-    "screenshot": "tsx scripts/screenshot.ts"
+    "screenshot": "tsx scripts/screenshot.ts",
+    "smoke:sandbox": "tsx scripts/sandbox-smoke.ts",
+    "dev:sandbox": "PAYPAL_MODE=sandbox npm run dev"
   },
   "dependencies": {
     "dotenv": "^17.2.0",

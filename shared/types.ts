@@ -170,7 +170,7 @@ export interface DemoState {
   schedule: Schedule;
   rush?: RushRequest;
   plan?: Plan;
-  rushOrder?: { orderId: string; status: 'created' | 'approved' | 'authorized'; authorizationId?: string; amountChf: number };
+  rushOrder?: { orderId: string; status: 'created' | 'approved' | 'authorized'; authorizationId?: string; amountChf: number; approveUrl?: string };
   stage: RushStage;
   ledger: LedgerEvent[];
   yield: { premiumsChf: number; compensationsChf: number; netChf: number; rushJobsWon: number };

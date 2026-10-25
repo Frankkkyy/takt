@@ -59,6 +59,11 @@ export class MockPayPal implements PayPalGateway {
     this.emit('PAYMENT.AUTHORIZATION.CREATED', 'authorization', `A payment authorization was created`, { id: authId, status: 'CREATED', amount: o.amount, supplementary_data: { related_ids: { order_id: orderId } } });
     return { orderId, authorizationId: authId, status: 'CREATED', amount: o.amount, expirationTime };
   }
+  async getAuthorization(authorizationId: string): Promise<AuthorizationResult> {
+    const a = this.auths.get(authorizationId);
+    if (!a) throw new Error('RESOURCE_NOT_FOUND');
+    return { orderId: a.orderId, authorizationId, status: a.status, amount: a.amount };
+  }
   async captureAuthorization(authorizationId: string, input: CaptureInput): Promise<CaptureResult> {
     // Seeded bookings have SEED-AUTH ids: accept them so the demo can settle pre-existing jobs.
     let a = this.auths.get(authorizationId);

@@ -80,7 +80,9 @@ sequenceDiagram
 | `server/agent/negotiator.ts` | `Negotiator` interface. Deterministic version: intake parsing and DE/FR/EN offer templates. The LLM version slots in behind it |
 | `server/paypal/gateway.ts` | `PayPalGateway` interface: every money move |
 | `server/paypal/mock.ts` | Offline implementation, used until credentials exist and for tests |
-| `server/paypal/rest.ts` | Sandbox REST client: OAuth, Orders, Payments, Payouts, webhook verification |
+| `server/paypal/rest.ts` | Sandbox REST client: OAuth, Orders, Payments, Payouts, webhook verification. Reconciles by polling and emits `RECON-…` webhook-shaped events. Verified against the sandbox on 25 Oct 2026 |
+| `scripts/sandbox-smoke.ts` | `npm run smoke:sandbox`: the whole money story against the real sandbox (rush authorize, capture less, refund, void, reauthorize guard, payout) |
+| `scripts/paypal-approve.ts` | Headless sandbox buyer approval (sandbox account login, or guest test card) for the smoke test and screenshots |
 | `server/app.ts` | Flow state machine: intake → plan → offers → accept/decline → rush authorization → commit on webhook → ship (capture less) / cancel (void) |
 | `web/src/*` | React UI: owner console (board, flow panel, PayPal log) and the `#/offer/:id` customer page |
 
@@ -99,7 +101,7 @@ sequenceDiagram
 ## Next (phase 2)
 
 1. Bryntum Scheduler Pro replaces `Board.tsx` (trial starts ≥ 31 Oct). Machines become resources and ops become events; ghost events show the proposal, and the accepted plan animates in.
-2. RestPayPal day-1 checks (see SPIKE.md); JS SDK v6 button for the rush customer.
+2. JS SDK v6 button for the rush customer, replacing the redirect link. The RestPayPal day-1 checks are done: see SPIKE.md.
 3. LLM negotiator (Claude Haiku), plus free-text reply parsing for counter-offers.
 4. Typed agent tools over the gateway next to `@paypal/agent-toolkit` tools.
 5. Hosting on Render, plus README and THIRD_PARTY.md.
