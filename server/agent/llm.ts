@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LiveCallLimiter, LlmUnavailable } from './limits.js';
+export { LlmUnavailable };
 
 // Claude Haiku 5.5, prompts ≤ 100K tokens (USD per million tokens).
 export const PRICE_PER_MTOK = { input: 0.1, output: 0.5, cacheWrite: 0.125, cacheRead: 0.01 };
@@ -25,6 +27,8 @@ export interface LlmOptions {
   record?: boolean;
   maxUsd?: number;
   maxCallsPerMinute?: number;
+  /** Hosted demo: per-session / per-IP / per-day limits on live calls (replays are never counted). */
+  limiter?: LiveCallLimiter;
 }
 
 export interface LlmUsage {
@@ -35,7 +39,6 @@ export interface LlmUsage {
   costUsd: number;
 }
 
-export class LlmUnavailable extends Error {}
 
 export interface CreateArgs {
   system: string;
@@ -115,6 +118,7 @@ export class LlmClient {
     const now = Date.now();
     this.recent = this.recent.filter((t) => now - t < 60_000);
     if (this.recent.length >= (this.opts.maxCallsPerMinute ?? 20)) throw new LlmUnavailable('rate limit (calls per minute) reached');
+    this.opts.limiter?.reserve();
     this.recent.push(now);
 
     const message = await this.transport!.create(p);

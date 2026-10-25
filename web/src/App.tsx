@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { DemoState } from '../../shared/types';
-import { chf, getState, post } from './api';
+import type { DemoState, LedgerEvent } from '../../shared/types';
+import { chf, dayLong, getState, post } from './api';
 import { Board } from './components/Board';
 import { Flow } from './components/Flow';
 import { OfferPage } from './components/Offer';
+import { RUSH_SAMPLES } from './samples';
 
 function useHash() {
   const [hash, setHash] = useState(location.hash);
@@ -15,8 +16,80 @@ function useHash() {
   return hash;
 }
 
+const STORY_SAMPLE = RUSH_SAMPLES.find((s) => s.label === 'DE email')!;
+
+/** Cold open (first ~6 s of the video): the shop is full, a rush email arrives, the hook line. Code-computed numbers. */
+function Story({ state, onOpen }: { state: DemoState; onOpen: () => void }) {
+  const cap = state.capacity;
+  return (
+    <section className="story" aria-label="Start: the shop is full">
+      <div className="story-clock">Friday, 15:00 · Werkstatt Reuss, Emmen LU · 12 people, 4 machines</div>
+      <h1>{cap ? <>The laser and press brake are full until {dayLong(state.boardStartIso, cap.nextFreeDay)}.</> : 'The shop is fully booked.'}</h1>
+      {cap && (
+        <div className="util">
+          {state.machines.map((m) => (
+            <div key={m.id} className={`util-row ${cap.week1Pct[m.id] >= 85 ? 'full' : ''}`}>
+              <span>{m.name}</span>
+              <div className="meter"><i style={{ width: `${Math.min(100, cap.week1Pct[m.id])}%` }} /></div>
+              <b>{cap.week1Pct[m.id]} %</b>
+            </div>
+          ))}
+          <p className="muted small">Booked hours this week. A new laser + press-brake job would ship <b>{dayLong(state.boardStartIso, cap.nextFreeDay)}</b> at the earliest.</p>
+        </div>
+      )}
+      <div className="mail-toast" role="status">
+        <div className="mail-icon">✉</div>
+        <div className="mail-body">
+          <small>New email · Thomas Schmid, Hof Schmid (farm), Escholzmatt</small>
+          <b>Mähdrescher: Halter gerissen, brauche 6 Stück bis Dienstag</b>
+          <span className="muted">Harvest starts Wednesday. Saying no loses the best order of the week; bumping someone silently loses a customer.</span>
+        </div>
+        <button className="btn accent" onClick={onOpen}>Open request</button>
+      </div>
+      <p className="hook">Airlines pay passengers who can wait. <b>Takt does it for factories, with PayPal.</b></p>
+    </section>
+  );
+}
+
+/** Plain-language titles for the agent's tool calls; the raw JSON stays one click away. */
+const TOOL_TITLES: Record<string, string> = {
+  record_rush_job: 'Agent recorded the job',
+  plan_bump_options: 'Agent ran the planner',
+  choose_bump_plan: 'Agent chose a plan',
+  draft_offer: 'Agent drafted an offer',
+  accept_offer: 'Agent: customer accepts',
+  counter_offer: 'Agent: counter-offer within limits',
+  reply_to_customer: 'Agent answered the customer',
+  decline_offer: 'Agent: customer declines',
+  escalate_to_owner: 'Agent escalated to the owner',
+};
+
+function LogItem({ e }: { e: LedgerEvent }) {
+  const tool = e.source === 'tool' ? /^tool (\w+)/.exec(e.title)?.[1] : undefined;
+  const title = tool ? TOOL_TITLES[tool] ?? e.title : e.title;
+  const raw = tool || e.detail.length > 180;
+  return (
+    <li className={`src-${e.source}`}>
+      <span className="time">{new Date(e.at).toLocaleTimeString('de-CH')}</span>
+      <span className="src">{e.source}</span>
+      <b>{title}</b>
+      {e.amountChf !== undefined && <span className="amt">{chf(e.amountChf)}</span>}
+      {e.paypalId && <code title="PayPal id">{e.paypalId}</code>}
+      {raw ? (
+        <details className="detail">
+          <summary>{tool ? 'tool call' : `${e.detail.slice(0, 120)}…`}</summary>
+          <span>{e.detail}</span>
+        </details>
+      ) : (
+        <span className="detail">{e.detail}</span>
+      )}
+    </li>
+  );
+}
+
 export function App() {
   const [state, setState] = useState<DemoState | null>(null);
+  const [draft, setDraft] = useState(RUSH_SAMPLES[0].text);
   const hash = useHash();
 
   useEffect(() => {
@@ -43,6 +116,9 @@ export function App() {
   if (offerMatch) return <OfferPage id={offerMatch[1]} state={state} onState={setState} />;
 
   const showProposal = ['planned', 'offers-sent', 'awaiting-approval', 'awaiting-payment'].includes(state.stage);
+  const coldOpen = state.stage === 'idle' && !state.rush && !state.intakeQuestion;
+  const a = state.agent;
+  const left = a.liveLeft;
   return (
     <div className="app">
       <header className="top">
@@ -62,33 +138,26 @@ export function App() {
         <div className="modes">
           <span className={`badge ${state.modes.paypal}`}>PayPal: {state.modes.paypal}</span>
           <span
-            className={`badge agent-${state.agent.last ?? state.agent.configured}`}
-            title={`Configured: ${state.agent.configured === 'llm' ? `Claude ${state.agent.model} with rules fallback` : 'rules only'}\nLive calls ${state.agent.liveCalls}, recorded ${state.agent.replayCalls}\nTokens ${state.agent.inputTokens} in / ${state.agent.outputTokens} out, USD ${state.agent.costUsd.toFixed(4)}${state.agent.fallbackReason ? `\nLast fallback: ${state.agent.fallbackReason}` : ''}`}
+            className={`badge agent-${a.last ?? a.configured}`}
+            title={`Configured: ${a.configured === 'llm' ? `Claude ${a.model} with rules fallback` : 'rules only'}\nThis demo: live calls ${a.liveCalls}, recorded ${a.replayCalls}\nTokens ${a.inputTokens} in / ${a.outputTokens} out, USD ${a.costUsd.toFixed(4)}${left ? `\nLive Claude calls left: ${left.session ?? '–'} this hour (your session), ${left.today} today (whole demo)` : ''}${a.fallbackReason ? `\nLast fallback: ${a.fallbackReason}` : ''}`}
           >
-            Agent: {state.agent.configured === 'deterministic' ? 'rules' : state.agent.last === 'fallback' ? 'rules (fallback)' : `Claude Haiku 5.5${state.agent.last === 'replay' ? ' · recorded' : state.agent.last === 'live' ? ' · live' : ''}`}
+            Agent: {a.configured === 'deterministic' ? 'rules' : a.last === 'fallback' ? 'rules (fallback)' : `Claude Haiku 5.5${a.last === 'replay' ? ' · recorded' : a.last === 'live' ? ' · live' : ''}`}
           </span>
-          <button className="btn small ghost" onClick={async () => setState((await post('/api/demo/reset')).state)}>Reset demo</button>
+          <button className="btn small ghost" onClick={async () => setState((await post('/api/demo/reset')).state)} title="Resets only your own demo session">Reset demo</button>
         </div>
       </header>
+      {coldOpen && <Story state={state} onOpen={() => { setDraft(STORY_SAMPLE.text); document.querySelector<HTMLTextAreaElement>('.intake textarea')?.focus(); }} />}
       <main className="main">
         <section className="left">
           <Board state={state} showProposal={showProposal} />
           <div className="ledger">
             <h3>PayPal &amp; agent log</h3>
             <ul>
-              {state.ledger.slice(0, 24).map((e) => (
-                <li key={e.id} className={`src-${e.source}`}>
-                  <span className="time">{new Date(e.at).toLocaleTimeString('de-CH')}</span>
-                  <span className="src">{e.source}</span>
-                  <b>{e.title}</b>
-                  <span className="detail">{e.detail}</span>
-                  {e.paypalId && <code>{e.paypalId}</code>}
-                </li>
-              ))}
+              {state.ledger.slice(0, 30).map((e) => <LogItem key={e.id} e={e} />)}
             </ul>
           </div>
         </section>
-        <Flow state={state} onState={setState} />
+        <Flow state={state} onState={setState} draft={draft} setDraft={setDraft} />
       </main>
     </div>
   );

@@ -48,6 +48,29 @@ export function checkAmount(amountChf: unknown, ceilingChf: number): Verdict {
   return { ok: true };
 }
 
+/**
+ * Minimal-concession policy (code, applies to Claude and to the rules): without the owner, a counter-offer may raise
+ * the opening amount by at most 50 % (at least CHF 20), and never above the hard ceiling. Larger asks get a
+ * modest step up (concessionStep) or go to the owner.
+ */
+export function counterLimit(openingChf: number, ceilingChf: number): number {
+  return Math.max(0, Math.min(ceilingChf, openingChf + Math.max(20, Math.round(openingChf * 0.5))));
+}
+
+/** One modest step up from the current amount: CHF 10-30, rounded to 5, never above the counter limit. */
+export function concessionStep(currentChf: number, openingChf: number, ceilingChf: number): number {
+  const step = Math.min(30, Math.max(10, Math.round((currentChf * 0.25) / 5) * 5));
+  return Math.min(counterLimit(openingChf, ceilingChf), currentChf + step);
+}
+
+export function checkCounter(amountChf: unknown, openingChf: number, ceilingChf: number): Verdict {
+  const a = checkAmount(amountChf, ceilingChf);
+  if (!a.ok) return a;
+  const limit = counterLimit(openingChf, ceilingChf);
+  if ((amountChf as number) > limit) return { ok: false, error: `CHF ${amountChf} is more than the shop agrees to without the owner: at most CHF ${limit} for this offer (opening CHF ${openingChf} + 50 %)` };
+  return { ok: true };
+}
+
 /** A delivery day the shop can promise: not earlier than the planner's new date, inside the board. */
 export function checkDeliveryDay(day: unknown, earliestDay: number): Verdict {
   if (typeof day !== 'number' || !Number.isInteger(day)) return { ok: false, error: 'delivery_day must be a board day index' };

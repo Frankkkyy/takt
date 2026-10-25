@@ -71,15 +71,16 @@ const seedJobs: SeedJob[] = [
 ];
 
 let authCounter = 0;
-function fakeAuthIds(seed: string) {
+function fakeAuthIds(seed: string, runId: string) {
   authCounter++;
-  const n = (authCounter * 7919).toString(36).toUpperCase().padStart(6, '0');
+  const n = (authCounter * 7919).toString(36).toUpperCase().padStart(6, '0') + (runId ? `-${runId.toUpperCase()}` : '');
   return { orderId: `SEED-ORD-${seed}-${n}`, authorizationId: `SEED-AUTH-${seed}-${n}` };
 }
 
 /** Build the seeded job list. Due dates are derived from the baseline schedule plus per-job slack, so the
- *  baseline is always on time and the shop is "full" (no slack on the bottleneck in week 1). */
-export function buildSeedJobs(): Job[] {
+ *  baseline is always on time and the shop is "full" (no slack on the bottleneck in week 1).
+ *  runId makes the placeholder authorization ids unique per demo run (a reset must never reuse them). */
+export function buildSeedJobs(runId = ''): Job[] {
   authCounter = 0;
   const jobs: Job[] = seedJobs.map((s, i) => ({
     id: s.id,
@@ -93,7 +94,7 @@ export function buildSeedJobs(): Job[] {
     priceChf: s.priceChf,
     payment:
       s.payment === 'authorization'
-        ? { kind: 'authorization', ...fakeAuthIds(s.id), authorizedChf: s.priceChf }
+        ? { kind: 'authorization', ...fakeAuthIds(s.id, runId), authorizedChf: s.priceChf }
         : { kind: 'prepaid', paidChf: s.priceChf, paidVia: 'bank-transfer' },
     status: 'booked',
     seq: (i + 1) * 10,

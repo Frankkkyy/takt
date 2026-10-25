@@ -97,6 +97,8 @@ export interface RushRequest {
   ops: Operation[];
   dueDay: number;
   basePriceChf: number;
+  /** Delivery day if the rush job were simply appended to the full schedule (nobody moves). Code, not AI. */
+  firstFitDay?: number;
   /** Which parts of the intake came from the AI vs. deterministic code. */
   extractedBy: 'llm' | 'deterministic';
 }
@@ -117,6 +119,8 @@ export interface BumpOffer {
   respondedAt?: string;
   /** Hard cap for this offer (code, not AI): min(per-job cap, what is left of the rush budget). */
   capChf: number;
+  /** Amount of the first offer. Counter-offers may raise it by at most 50 % without the owner (guardrails.counterLimit). */
+  openingChf?: number;
   /** Free-text thread with the customer (customer replies are untrusted input). */
   thread: OfferMessage[];
   /** Set when the agent hands the reply to the owner (unclear, over the cap, or looks like manipulation). */
@@ -217,11 +221,19 @@ export interface DemoState {
   schedule: Schedule;
   rush?: RushRequest;
   plan?: Plan;
-  rushOrder?: { orderId: string; status: 'created' | 'approved' | 'authorized'; authorizationId?: string; amountChf: number; approveUrl?: string };
+  rushOrder?: { orderId: string; status: 'created' | 'approved' | 'authorized'; authorizationId?: string; amountChf: number; approveUrl?: string; cancelledAt?: string };
+  /** Set when the intake could not read a job from the text: Takt asks the owner instead of inventing one. */
+  intakeQuestion?: { missing: string[]; message: string };
+  /** Offers that are closed and no longer part of the plan (declined), so their links still show the answer. */
+  pastOffers?: BumpOffer[];
+  /** Start-state capacity (code): week-1 utilisation per machine and the first day a new laser + press-brake job could ship. */
+  capacity?: { week1Pct: Record<string, number>; nextFreeDay: number };
+  /** Last PayPal-side event the owner should see (buyer cancelled, authorization failed). */
+  paypalNotice?: { kind: 'cancelled' | 'error'; text: string; at: string };
   stage: RushStage;
   ledger: LedgerEvent[];
   yield: { premiumsChf: number; compensationsChf: number; netChf: number; rushJobsWon: number };
-  approval?: { moves: MoneyMove[]; checks: GuardrailCheck[]; status: 'pending' | 'approved' };
+  approval?: { moves: MoneyMove[]; checks: GuardrailCheck[]; status: 'pending' | 'approved'; doneMoveIds?: string[] };
   modes: { paypal: 'mock' | 'sandbox'; agent: 'deterministic' | 'llm'; currency: string };
   agent: AgentStatus;
 }
@@ -238,4 +250,6 @@ export interface AgentStatus {
   inputTokens: number;
   outputTokens: number;
   costUsd: number;
+  /** Hosted demo: live Claude calls left for this session (this hour) and for the whole demo today. */
+  liveLeft?: { session: number | null; today: number };
 }

@@ -1,0 +1,54 @@
+{
+ "key": "fe24da0ae0f283bffc6e4d63",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-10-25T22:04:30.376Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgPiJ1tWCSDHq4bF4XwtX",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSuwYKEAgTGAI4AUIIdGhpbmtpbmcSDAPIX/JyMNDyppmOTxoMeG+7Z5gYCMnaOFOZIjD+GETf8xuY3YGPo8oFrG5BFTUeoLaaJTxgsotnleZNE9PhycpIAPy6Jd5Wc8Qb0rEq2AVq3kcLi3uJ564KQ55lw3fgbphApWrTUJKMYaP5CnW5qByzGd7T3ujY6Oe8/GjoBJNhVV+pq6lpEx1WvEckzGMg7w0l4V9RawZsC4t8LtcWJC2Frhn1KQuUyunPPylV6VEn8F2JvJahcmizT0gXakbR37v63vpUBGQsx5t+uXrVDhHlCWdJncqz2ZBrGL5mDjyd2JKgkt4GeoSHqP1RjjffCEXNh3Lk+Om+3NlKmIAUq146gmPpHvcFQlJZ0rRT++V7LSWOlJpSndgTqdGKGiRZLSZtXX5rNCS1HbxkWzb4To4/dtiuMoKzLpy1yexiUwAt2AYriuF+Nr9vYd1LyPH4Az9lZ2sr+rcvLGritvxGMfAHoBkk1haFb/11CxI9Yad+59TXYYnGJ9NxUgubQmaMxKud4IP1WCqb1BBnx4F3b0fV7oGo7Zk+KXpwlXYemQoWr0+4E01svsSWco4mrMfcLkLMpOegZEiBWOv3W4tK1mxpc2YJ1NvZjU0B3PaV1UIEovJl/7ATmo6iAt10vcilsqQX/cVvtMUeFyFTG7dEyPrvyWigVVrs7ROurcEUqTsoHRWwE8x3U3rrTQU+lQA7nPJ2x8WAijiXupFxfOdMhPMwHKZuU6rKf4HRo22sp2O56aarmWwFieybU7ZPCTXN1Rz0MtLi3EfIyjROTAf3yuuuumwetTdAXWKEaiwXU1dWfOfJOWTOOJ1CQmo0nv0chvYM6DUbJaJTAu7duc7d/qaQkWbmW2d1pFzfzBq7dG9s/HJzAgD2DObFIPUlxjqioTaLdNcUuiUBRoILfgqh/Idt56pthdYkDb2Cvvm+27Q+ArIYxBj+zq3pa88PYE+AOIDXiXlECFYN+RFlgNd/YjTO/t5Wh3ugs3wv8vb9vVrJY8WwLQUpIEciK9mScLELAkqKRHyPVPDLFL0Tx7Sx+wEIG088sBgFLITZnScaHFA9TmxEEI4ClBgB"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01FyQ29qo3kmCNRTNs9zveKc",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "compensation_chf": 70,
+     "delivery_day": 3,
+     "message": "Merci beaucoup pour votre réponse, Monsieur Rochat. Nous confirmons la livraison de vos cadres de table jeudi matin, avec une compensation de CHF 70, déduite de votre autorisation PayPal existante à l'expédition. Nous vous remercions de votre compréhension. Werkstatt Reuss",
+     "message_en": "Thank you for your reply, Mr Rochat. We confirm delivery of your table frames on Thursday morning, with compensation of CHF 70, deducted from your existing PayPal authorization at shipment. Thank you for your understanding. Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2327,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2327,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 449,
+   "output_tokens_details": {
+    "thinking_tokens": 96
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

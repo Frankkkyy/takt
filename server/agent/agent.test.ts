@@ -73,7 +73,7 @@ const claudeWith = (transport: LlmTransport, cacheDir?: string, record = false) 
 test('Claude intake: invalid tool input is rejected by code, corrected, and price comes from the rate card', async () => {
   const fake = fakeClaude({});
   const app = appWith(claudeWith(fake));
-  const rush = await app.intake(REQUEST);
+  const rush = (await app.intake(REQUEST))!;
   assert.equal(rush.qty, 6);
   assert.equal(rush.customer.lang, 'de');
   assert.equal(rush.extractedBy, 'llm');
@@ -199,4 +199,25 @@ test('Recorded demo path (scripted inputs) replays 10/10 on Claude with zero liv
     await wait(30);
     assert.equal(app.state.stage, 'committed');
   }
+});
+
+for (const label of ['DE email', 'FR email']) test(`Recorded ${label} path: offers, French counter, German yes, all replayed`, async () => {
+  const { RUSH_SAMPLES, REPLY_SAMPLES } = await import('../../web/src/samples.js');
+  const { DEFAULT_CACHE_DIR } = await import('./llm.js');
+  const agent = new HybridAgent(new ClaudeAgent(new LlmClient({ model: 'claude-haiku-5-5', cacheDir: DEFAULT_CACHE_DIR, cacheMode: 'replay-only' })));
+  const app = appWith(agent);
+  const rush = (await app.intake(RUSH_SAMPLES.find((s) => s.label === label)!.text))!;
+  assert.equal(rush.customer.lang, label.slice(0, 2).toLowerCase());
+  const plan = await app.plan();
+  app.sendOffers();
+  const rochat = plan.offers.find((o) => o.customerId === 'rochat')!;
+  const meier = plan.offers.find((o) => o.customerId === 'meier')!;
+  assert.equal(rochat.lang, 'fr');
+  await app.reply(rochat.id, REPLY_SAMPLES.find((r) => r.label === 'Counter (FR)')!.text);
+  await app.reply(meier.id, REPLY_SAMPLES.find((r) => r.label === 'Yes (DE)')!.text);
+  const st = app.snapshot().agent;
+  assert.equal(st.liveCalls, 0);
+  assert.equal(st.last, 'replay', `${label} recordings missing or stale (npm run agent:eval)`);
+  assert.equal(rochat.compensationChf, 70);
+  assert.equal(app.state.stage, 'awaiting-approval');
 });

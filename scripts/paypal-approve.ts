@@ -23,6 +23,13 @@ async function loginAndApprove(page: Page, email: string, password: string) {
   // Review page: "Continue" / "Weiter" / "Agree & continue".
   const submit = page.locator('[data-testid="submit-button-initial"], #payment-submit-btn, button[data-id="payment-submit-btn"]').first();
   await submit.waitFor({ timeout: 60_000 });
+  // The workspace sandbox buyer defaults to a SEPA bank account, which opens a direct-debit mandate (QA B9, verified
+  // 2026-10-26). Pick the account's card funding instrument (data-testid "CC-…-fundingInstrument-container") instead.
+  const card = page.locator('[data-testid^="CC-"][data-testid$="-fundingInstrument-container"]').first();
+  if (await card.count()) {
+    await card.click();
+    await page.waitForTimeout(800);
+  }
   await submit.click();
 }
 

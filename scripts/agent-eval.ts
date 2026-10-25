@@ -1,4 +1,4 @@
-// Agent eval: 13 cases over the real Claude agent (intake DE/FR/EN, plan, accept / decline / counter, over-cap,
+// Agent eval: 17 cases over the real Claude agent (intake DE/FR/EN, plan, accept / decline / counter, over-cap,
 // prompt injection, question). Reports pass/fail and token cost, and writes docs/AGENT_EVAL.md.
 //
 //   npm run agent:eval            replay recorded responses where they exist, call Claude for the rest, record them
@@ -41,8 +41,8 @@ async function fresh(text = EN) {
   await app.intake(text);
   return app;
 }
-async function withOffers() {
-  const app = await fresh();
+async function withOffers(text = EN) {
+  const app = await fresh(text);
   await app.plan();
   app.sendOffers();
   return app;
@@ -64,9 +64,9 @@ const cases: Case[] = [
     const app = await fresh(DE); const r = app.state.rush!;
     return { app, note: `${r.qty}× ${r.title}, ${r.material}, day ${r.dueDay}, ${r.customer.lang}, ${r.customer.name}`, checks: [['qty 6', r.qty === 6], ['due Tuesday (1)', r.dueDay === 1], ['lang de', r.customer.lang === 'de'], ['Halter = bracket routing', r.ops[0]?.machineId === 'LAS1' && r.ops[1]?.machineId === 'PB1'], ['customer Hof Schmid', /schmid/i.test(r.customer.name)]] };
   } },
-  { id: 'intake-fr', what: 'FR email "4 pattes de fixation inox 3 mm pour jeudi"', run: async () => {
+  { id: 'intake-fr', what: 'FR email "10 pattes de fixation inox 3 mm pour mardi soir"', run: async () => {
     const app = await fresh(FR); const r = app.state.rush!;
-    return { app, note: `${r.qty}× ${r.title}, ${r.material}, day ${r.dueDay}, ${r.customer.lang}, ${r.customer.name}`, checks: [['qty 4', r.qty === 4], ['due Thursday (3)', r.dueDay === 3], ['lang fr', r.customer.lang === 'fr'], ['inox 3 mm', /inox|1\.4301/i.test(r.material) && /\b3 mm/.test(r.material)]] };
+    return { app, note: `${r.qty}× ${r.title}, ${r.material}, day ${r.dueDay}, ${r.customer.lang}, ${r.customer.name}`, checks: [['qty 10', r.qty === 10], ['due Tuesday (1)', r.dueDay === 1], ['lang fr', r.customer.lang === 'fr'], ['customer Fromagerie du Jorat', /jorat/i.test(r.customer.name)], ['inox 3 mm', /inox|1\.4301/i.test(r.material) && /\b3 mm/.test(r.material)]] };
   } },
   { id: 'plan', what: 'Planner tool → choose customers → offers in their language', run: async () => {
     const app = await fresh(EN); const p = await app.plan();
@@ -86,8 +86,23 @@ const cases: Case[] = [
       ['offer language = customer language', p.offers.every((o) => o.lang === app.state.customers.find((c) => c.id === o.customerId)!.lang)],
       ['every offer states its exact CHF amount', p.offers.every((o) => o.message.includes(`CHF ${o.compensationChf}`))],
       ['within budget', p.compensationTotalChf <= p.budgetCapChf],
+      ['bumps someone (the samples are real squeezes)', p.offers.length > 0],
+      ...(id === 'plan-fr' ? [['asks the French customer (Rochat)', p.offers.some((o) => o.customerId === 'rochat' && o.lang === 'fr')] as Check] : []),
     ] };
   } })),
+  // The scripted replies on the DE and FR request paths (the video uses the DE email; the FR email shows a French intake).
+  ...([['de', DE], ['fr', FR]] as const).flatMap(([lang, text]): Case[] => [
+    { id: `${lang}-path-counter`, what: `${lang.toUpperCase()} request → Rochat answers "${reply('Counter (FR)')}"`, run: async () => {
+      const app = await withOffers(text); const o = offerIn(app, 'fr', 'rochat');
+      await app.reply(o.id, reply('Counter (FR)'));
+      return { app, note: `${o.customerId}: ${o.status}, CHF ${o.compensationChf}, day ${o.toDay}; "${o.thread.at(-1)?.textEn ?? ''}"`, checks: [['accepted with new terms', o.status === 'accepted'], ['CHF 70', o.compensationChf === 70], ['Thursday (3)', o.toDay === 3], ['confirmation in French', o.thread.at(-1)?.from === 'shop']] };
+    } },
+    { id: `${lang}-path-yes-de`, what: `${lang.toUpperCase()} request → Meier answers "${reply('Yes (DE)')}"`, run: async () => {
+      const app = await withOffers(text); const o = offerIn(app, 'de', 'meier');
+      await app.reply(o.id, reply('Yes (DE)'));
+      return { app, note: `${o.customerId}: ${o.status}, CHF ${o.compensationChf}`, checks: [['accepted', o.status === 'accepted'], ['decided by Claude', o.decidedBy === 'llm']] };
+    } },
+  ]),
   { id: 'reply-accept-de', what: `"${reply('Yes (DE)')}"`, run: async () => {
     const app = await withOffers(); const o = offerIn(app, 'de', 'meier'); const before = o.compensationChf;
     await app.reply(o.id, reply('Yes (DE)'));
@@ -172,5 +187,10 @@ Token counts include cached prompt reads. Price: Claude Haiku 5.5 at USD 0.10 / 
 |---|---|---|---|---|---|---|---|
 ${rows.join('\n')}
 `;
-writeFileSync(new URL('../docs/AGENT_EVAL.md', import.meta.url), md);
-console.log('wrote docs/AGENT_EVAL.md');
+// A pure replay run proves nothing new about the model: keep the live-run evidence instead of overwriting it.
+if (u.liveCalls > 0 || process.argv.includes('--write')) {
+  writeFileSync(new URL('../docs/AGENT_EVAL.md', import.meta.url), md);
+  console.log('wrote docs/AGENT_EVAL.md');
+} else {
+  console.log('replay only (0 live calls): docs/AGENT_EVAL.md left unchanged (pass --write to overwrite)');
+}

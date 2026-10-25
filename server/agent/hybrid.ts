@@ -5,6 +5,7 @@ import type { AgentResult, IntakeResult, PlanDecision, PlanInput, ReplyDecision,
 import { ClaudeAgent } from './claude.js';
 import { DeterministicAgent } from './deterministic.js';
 import { DEFAULT_CACHE_DIR, LlmClient, type CacheMode } from './llm.js';
+import type { LiveCallLimiter } from './limits.js';
 
 export class HybridAgent implements RushAgent {
   readonly kind = 'llm' as const;
@@ -55,7 +56,7 @@ export interface AgentEnv {
   AGENT_MAX_CALLS_PER_MIN?: string;
 }
 
-export function createAgent(env: AgentEnv = process.env): RushAgent {
+export function createAgent(env: AgentEnv = process.env, limiter?: LiveCallLimiter): RushAgent {
   if (env.AGENT_MODE === 'deterministic') return new DeterministicAgent();
   const llm = new LlmClient({
     apiKey: env.ANTHROPIC_API_KEY || undefined,
@@ -66,6 +67,7 @@ export function createAgent(env: AgentEnv = process.env): RushAgent {
     record: env.AGENT_RECORD === '1',
     maxUsd: Number(env.AGENT_MAX_USD ?? 0.25),
     maxCallsPerMinute: Number(env.AGENT_MAX_CALLS_PER_MIN ?? 20),
+    limiter,
   });
   // Without a key, Claude still "runs" for the scripted demo inputs from recorded responses; others fall back.
   return new HybridAgent(new ClaudeAgent(llm));

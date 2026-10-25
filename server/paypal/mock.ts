@@ -28,10 +28,22 @@ export class MockPayPal implements PayPalGateway {
     const e: PayPalWebhookEvent = { id: this.id('WH-'), event_type, resource_type, summary, resource, create_time: new Date().toISOString() };
     setTimeout(() => this.dispatch(e), this.delayMs);
   }
-  onEvent(h: (e: PayPalWebhookEvent) => void) { this.handlers.push(h); }
-  dispatch(e: PayPalWebhookEvent) { for (const h of this.handlers) h(e); }
+  onEvent(h: (e: PayPalWebhookEvent) => void) {
+    this.handlers.push(h);
+    return () => { this.handlers = this.handlers.filter((x) => x !== h); };
+  }
+  dispatch(e: PayPalWebhookEvent) { for (const h of [...this.handlers]) h(e); }
+  private byRequestId = new Map<string, CaptureResult>();
+  /** Like PayPal: an invoice_id the merchant account already used is rejected with DUPLICATE_TRANSACTION. */
+  private invoices = new Set<string>();
+  private useInvoice(invoiceId?: string) {
+    if (!invoiceId) return;
+    if (this.invoices.has(invoiceId)) throw new Error('DUPLICATE_TRANSACTION');
+    this.invoices.add(invoiceId);
+  }
 
   async createAuthorizeOrder(input: CreateAuthorizeOrderInput): Promise<OrderResult> {
+    this.useInvoice(input.invoiceId);
     const id = this.id('ORD-');
     this.orders.set(id, { id, status: 'CREATED', amount: input.amount, invoiceId: input.invoiceId });
     return { orderId: id, status: 'CREATED' };
@@ -65,6 +77,9 @@ export class MockPayPal implements PayPalGateway {
     return { orderId: a.orderId, authorizationId, status: a.status, amount: a.amount };
   }
   async captureAuthorization(authorizationId: string, input: CaptureInput): Promise<CaptureResult> {
+    // Mirrors PayPal-Request-Id: a repeated request id returns the first result instead of capturing again.
+    const again = input.requestId ? this.byRequestId.get(input.requestId) : undefined;
+    if (again) return again;
     // Seeded bookings have SEED-AUTH ids: accept them so the demo can settle pre-existing jobs.
     let a = this.auths.get(authorizationId);
     if (!a && authorizationId.startsWith('SEED-AUTH')) {
@@ -73,12 +88,15 @@ export class MockPayPal implements PayPalGateway {
     }
     if (!a) throw new Error('RESOURCE_NOT_FOUND');
     if (a.status === 'CAPTURED' || a.status === 'VOIDED') throw new Error('AUTHORIZATION_ALREADY_CAPTURED');
+    this.useInvoice(input.invoiceId);
     a.captured += input.amount.value;
     a.status = input.finalCapture ? 'CAPTURED' : 'PARTIALLY_CAPTURED';
     const captureId = this.id('CAP-');
     this.captures.set(captureId, { id: captureId, amount: input.amount, refunded: 0 });
+    const result = { captureId, status: 'COMPLETED', amount: input.amount };
+    if (input.requestId) this.byRequestId.set(input.requestId, result);
     this.emit('PAYMENT.CAPTURE.COMPLETED', 'capture', `Payment completed for ${input.amount.currency} ${input.amount.value.toFixed(2)}`, { id: captureId, status: 'COMPLETED', amount: input.amount, final_capture: input.finalCapture, note_to_payer: input.noteToPayer, supplementary_data: { related_ids: { authorization_id: authorizationId } } });
-    return { captureId, status: 'COMPLETED', amount: input.amount };
+    return result;
   }
   async voidAuthorization(authorizationId: string) {
     const a = this.auths.get(authorizationId) ?? { id: authorizationId, orderId: '', status: 'CREATED', amount: { currency: 'CHF', value: 0 }, captured: 0 };

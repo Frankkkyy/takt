@@ -1,16 +1,16 @@
 {
- "key": "a9d6e25a8d1c16c0a4d78c7e",
+ "key": "cd0af0287b6a0a9f032eb845",
  "model": "claude-haiku-5-5",
- "recordedAt": "2026-10-25T21:22:22.977Z",
+ "recordedAt": "2026-10-25T22:03:31.263Z",
  "response": {
   "model": "claude-haiku-5-5",
-  "id": "msg_011CgPf5mmm4Bm2DfYUMxgEz",
+  "id": "msg_011CgPiDhwemDFSVMXHx6LXr",
   "type": "message",
   "role": "assistant",
   "content": [
    {
     "type": "tool_use",
-    "id": "toolu_01E3Eg2gfsojo8xreEtLPVFf",
+    "id": "toolu_01CzUwjtnFjozjnweiXmovZJ",
     "name": "plan_bump_options",
     "input": {
      "exclude_customer_ids": [
@@ -30,13 +30,13 @@
   "stop_details": null,
   "usage": {
    "input_tokens": 4,
-   "cache_creation_input_tokens": 2165,
+   "cache_creation_input_tokens": 2173,
    "cache_read_input_tokens": 0,
    "cache_creation": {
-    "ephemeral_5m_input_tokens": 2165,
+    "ephemeral_5m_input_tokens": 2173,
     "ephemeral_1h_input_tokens": 0
    },
-   "output_tokens": 76,
+   "output_tokens": 78,
    "output_tokens_details": {
     "thinking_tokens": 0
    },

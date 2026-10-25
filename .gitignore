@@ -11,3 +11,6 @@ dist/
 .DS_Store
 test-results/
 playwright-report/
+
+# QA evidence from the real PayPal sandbox (buyer account pages): never publish
+qa/sandbox/

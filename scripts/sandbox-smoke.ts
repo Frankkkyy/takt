@@ -64,7 +64,7 @@ if (noBrowser) {
     await browser.close();
   }
   const approved = await pp.getOrder(order.orderId);
-  check('buyer approved (headless sandbox checkout)', approved.status === 'APPROVED', `${approved.status}${approved.payerEmail ? `, payer ${approved.payerEmail}` : ''}`);
+  check('buyer approved (headless sandbox checkout)', approved.status === 'APPROVED', `${approved.status}${approved.payerEmail ? `, payer ${approved.payerEmail.replace(/^(.{3}).*(@.*)$/, '$1…$2')}` : ''}`);
   rushAuth = await pp.authorizeOrder(order.orderId);
   check('rush authorized', rushAuth.status === 'CREATED' && rushAuth.amount.value === rushPrice, `${rushAuth.authorizationId} ${rushAuth.status} ${rushAuth.amount.currency} ${rushAuth.amount.value}, expires ${rushAuth.expirationTime}`);
 }

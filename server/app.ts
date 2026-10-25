@@ -1,13 +1,15 @@
 // Takt application service: in-memory demo state + the rush / bump / settle flow.
-import type { BumpOffer, Customer, DemoState, Job, LedgerEvent, MoneyMove, Plan, PlanOptionView, RushRequest } from '../shared/types.js';
+// One TaktApp = one demo shop. The HTTP layer keeps one per browser session (server/sessions.ts).
+import { randomBytes } from 'node:crypto';
+import type { AgentStatus, BumpOffer, Customer, DemoState, Job, LedgerEvent, MoneyMove, Plan, PlanOptionView, RushRequest } from '../shared/types.js';
 import { buildSeedJobs, customers as seedCustomers, machines, SHOP } from './domain/seed.js';
 import { schedule } from './domain/scheduler.js';
-import { planRush, type PlanCandidate, type PlanResult } from './domain/planner.js';
+import { planRush, rushToJob, type PlanCandidate, type PlanResult } from './domain/planner.js';
 import { compensationBudget, perJobCap } from './domain/pricing.js';
-import type { AgentStep, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
-import { dayLabel, relDay } from './agent/agent.js';
+import type { AgentResult, AgentStep, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
+import { dayLabel, emptyStatus, NeedsClarification, relDay } from './agent/agent.js';
 import { templateOffer } from './agent/deterministic.js';
-import { approvalChecks, checkAmount, checkDeliveryDay, checkMessage, offerCeiling } from './agent/guardrails.js';
+import { approvalChecks, checkAmount, checkCounter, checkDeliveryDay, checkMessage, offerCeiling } from './agent/guardrails.js';
 import type { PayPalGateway } from './paypal/gateway.js';
 import type { PayPalWebhookEvent } from './paypal/gateway.js';
 
@@ -18,32 +20,70 @@ function nextMonday(from = new Date()): Date {
   return d;
 }
 
+/** Week-1 utilisation per machine, and when a small new laser + press-brake job would ship if nobody moved. */
+function capacityOf(jobs: Job[]): DemoState['capacity'] {
+  const s = schedule(jobs);
+  const week1Pct: Record<string, number> = {};
+  for (const m of machines) {
+    const h = s.ops.filter((o) => o.machineId === m.id).reduce((t, o) => t + Math.max(0, Math.min(o.end, 40) - Math.max(o.start, 0)), 0);
+    week1Pct[m.id] = Math.round((h / 40) * 100);
+  }
+  const probe: RushRequest = { id: 'probe', rawText: '', customer: { name: '', contact: '', city: '', email: '', lang: 'en' }, title: 'probe', material: '', qty: 1, ops: [{ machineId: 'LAS1', hours: 1, label: 'cut' }, { machineId: 'PB1', hours: 1, label: 'bend' }], dueDay: 0, basePriceChf: 0, extractedBy: 'deterministic' };
+  const nextFreeDay = schedule([...jobs, rushToJob(probe, 1e9)]).timing['RUSH-probe'].deliveryDay;
+  return { week1Pct, nextFreeDay };
+}
+
+export interface TaktAppOptions {
+  /** Sandbox: PayPal redirects the rush buyer here after approval (GET /api/paypal/return). */
+  returnUrl?: string;
+  /** Sandbox: PayPal sends the buyer here when they cancel on the PayPal page (GET /api/paypal/cancel). */
+  cancelUrl?: string;
+  /** Sandbox: seeded customers have fake emails, so payouts go to this sandbox personal account instead. */
+  payoutReceiver?: string;
+  /** Hosted demo: live Claude calls left for this session / today (shown next to the agent badge). */
+  liveLeft?: () => AgentStatus['liveLeft'];
+}
+
 export class TaktApp {
   state!: DemoState;
+  /** Unique per demo run (changes on every reset): makes PayPal invoice ids and request ids unique across runs. */
+  runId = '';
   private boardStart!: Date;
   private seen = new Set<string>();
+  /** PayPal ids this demo created. Webhooks for anything else (other sessions on a shared gateway) are ignored. */
+  private ownIds = new Set<string>();
   private n = 0;
   private pending?: { order: Job[]; rushJob: Job };
+  private agentSt: AgentStatus;
+  private inflight = new Map<string, Promise<unknown>>();
+  private unsubscribe: () => void;
 
   constructor(
     private paypal: PayPalGateway,
     private agent: RushAgent,
     private currency = SHOP.currency,
-    private opts: {
-      /** Sandbox: PayPal redirects the rush buyer here after approval (GET /api/paypal/return). */
-      returnUrl?: string;
-      /** Sandbox: seeded customers have fake emails, so payouts go to this sandbox personal account instead. */
-      payoutReceiver?: string;
-    } = {},
+    private opts: TaktAppOptions = {},
   ) {
-    paypal.onEvent((e) => void this.onPayPalEvent(e).catch((err) => this.log('system', 'Webhook handling failed', String(err))));
+    const s = agent.status();
+    this.agentSt = emptyStatus(s.configured, s.model);
+    this.unsubscribe = paypal.onEvent((e) => void this.onPayPalEvent(e).catch((err) => this.log('system', 'Webhook handling failed', String(err))));
     this.reset();
+  }
+
+  /** Stop listening to the (possibly shared) gateway. Called when a session expires. */
+  dispose() {
+    this.unsubscribe();
   }
 
   reset() {
     this.boardStart = nextMonday();
-    const jobs = buildSeedJobs();
+    this.runId = randomBytes(4).toString('hex');
+    const jobs = buildSeedJobs(this.runId);
     this.seen.clear();
+    this.ownIds.clear();
+    this.inflight.clear();
+    this.pending = undefined;
+    this.checkout = undefined;
     this.state = {
       boardStartIso: `${this.boardStart.getFullYear()}-${String(this.boardStart.getMonth() + 1).padStart(2, '0')}-${String(this.boardStart.getDate()).padStart(2, '0')}`,
       now: new Date().toISOString(),
@@ -52,18 +92,47 @@ export class TaktApp {
       jobs,
       schedule: schedule(jobs),
       stage: 'idle',
+      capacity: capacityOf(jobs),
       ledger: [],
       yield: { premiumsChf: 0, compensationsChf: 0, netChf: 0, rushJobsWon: 0 },
       modes: { paypal: this.paypal.mode, agent: this.agent.kind, currency: this.currency },
-      agent: this.agent.status(),
+      agent: this.agentStatus(),
     };
     this.log('system', 'Demo reset', `${SHOP.name}, ${SHOP.city}: ${jobs.length} booked jobs on ${machines.length} machines`);
   }
 
   snapshot(): DemoState {
     this.state.now = new Date().toISOString();
-    this.state.agent = this.agent.status();
+    this.state.agent = this.agentStatus();
     return this.state;
+  }
+
+  /** Agent badge for *this* demo: how its last step ran and what it cost (the agent itself is shared). */
+  private agentStatus(): AgentStatus {
+    return { ...this.agentSt, liveLeft: this.opts.liveLeft?.() };
+  }
+
+  private track<T>(res: AgentResult<T>) {
+    const a = this.agentSt;
+    a.last = res.source;
+    a.fallbackReason = res.source === 'fallback' ? res.fallbackReason : undefined;
+    if (res.source === 'live') a.liveCalls++;
+    if (res.source === 'replay') a.replayCalls++;
+    if (res.usage) {
+      a.inputTokens += res.usage.inputTokens;
+      a.outputTokens += res.usage.outputTokens;
+      a.costUsd += res.usage.costUsd;
+    }
+    this.state.agent = this.agentStatus();
+  }
+
+  /** Runs once per key at a time: double clicks and concurrent requests share the first call's result. */
+  private once<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const running = this.inflight.get(key) as Promise<T> | undefined;
+    if (running) return running;
+    const p = fn().finally(() => this.inflight.delete(key));
+    this.inflight.set(key, p);
+    return p;
   }
 
   private log(source: LedgerEvent['source'], title: string, detail: string, paypalId?: string, amountChf?: number) {
@@ -79,12 +148,18 @@ export class TaktApp {
   private async ensureRealAuthorization(job: Job) {
     if (job.payment.kind !== 'authorization' || !job.payment.authorizationId.startsWith('SEED-AUTH')) return;
     if (this.paypal.mode !== 'sandbox' || !this.paypal.createCardAuthorization) return;
-    const a = await this.paypal.createCardAuthorization({
+    return this.once(`seed-auth-${job.id}`, () => this.seedAuthorization(job));
+  }
+
+  private async seedAuthorization(job: Job) {
+    if (job.payment.kind !== 'authorization' || !job.payment.authorizationId.startsWith('SEED-AUTH')) return;
+    const a = await this.paypal.createCardAuthorization!({
       referenceId: job.id,
-      invoiceId: `TAKT-${job.id}-${Date.now().toString(36)}`,
+      invoiceId: `TAKT-${job.id}-${this.runId}-BOOKING`,
       description: `Booking ${job.id}: ${job.qty}x ${job.title}`,
       amount: this.money(job.payment.authorizedChf),
     });
+    this.ownIds.add(a.orderId).add(a.authorizationId);
     job.payment = { ...job.payment, orderId: a.orderId, authorizationId: a.authorizationId };
     this.log('api', `Sandbox booking authorization for ${job.id}`, `Seeded with a sandbox test card: POST /v2/checkout/orders intent=AUTHORIZE → ${a.status}, valid until ${a.expirationTime?.slice(0, 10)}`, a.authorizationId, a.amount.value);
   }
@@ -102,8 +177,22 @@ export class TaktApp {
   // ---- 1. Intake -----------------------------------------------------------------------------------
   async intake(text: string) {
     if (!text?.trim()) throw new Error('Empty request');
-    const res = await this.agent.intake(text.slice(0, 3000), this.boardStart);
-    this.state.agent = this.agent.status();
+    let res: AgentResult<Awaited<ReturnType<RushAgent['intake']>>['value']>;
+    try {
+      res = await this.agent.intake(text.slice(0, 3000), this.boardStart);
+    } catch (e) {
+      if (!(e instanceof NeedsClarification)) throw e;
+      // Never invent an order: ask the owner to complete the request.
+      this.agentSt.last = 'fallback';
+      this.state.rush = undefined;
+      this.state.plan = undefined;
+      this.state.stage = 'idle';
+      this.state.intakeQuestion = { missing: e.missing, message: e.message };
+      this.log('agent', 'Request unclear: asked the owner', e.message);
+      return null;
+    }
+    this.track(res);
+    this.state.intakeQuestion = undefined;
     const r = res.value;
     const slug = r.customerName.toLowerCase().replace(/\(.*?\)/g, '').normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'rush';
     const rush: RushRequest = {
@@ -118,8 +207,13 @@ export class TaktApp {
       basePriceChf: r.basePriceChf,
       extractedBy: res.source === 'live' || res.source === 'replay' ? 'llm' : 'deterministic',
     };
+    // Where would it land if nobody moved? (append to the full schedule; code, not AI)
+    const booked = this.state.jobs.filter((j) => j.status === 'booked');
+    rush.firstFitDay = schedule([...booked, rushToJob(rush, 1e9)]).timing[`RUSH-${rush.id}`].deliveryDay;
     this.state.rush = rush;
     this.state.plan = undefined;
+    this.state.pastOffers = undefined;
+    this.state.paypalNotice = undefined;
     this.state.rushOrder = undefined;
     this.state.approval = undefined;
     this.state.stage = 'intake';
@@ -170,7 +264,7 @@ export class TaktApp {
       return { feasible: last.feasible, reason: last.reason, candidatesEvaluated: last.candidatesEvaluated, options: lastViews };
     };
     const res = await this.agent.plan({ rush, customers: this.state.customers, jobs: this.state.jobs, boardStart: this.boardStart, runPlanner });
-    this.state.agent = this.agent.status();
+    this.track(res);
     if (!last) runPlanner([]);
     const chosen = candidates.get(res.value.optionId);
     const base = last!;
@@ -189,7 +283,7 @@ export class TaktApp {
       const now = new Date().toISOString();
       offers.push({
         id: `OF-${b.jobId}`, jobId: b.jobId, customerId: b.customerId, fromDay: b.fromDay, toDay: b.toDay, delayDays: b.delayDays,
-        compensationChf: b.compensationChf, mechanism: b.mechanism, lang: b.lang, message: draft.message, messageEn: draft.messageEn,
+        compensationChf: b.compensationChf, openingChf: b.compensationChf, mechanism: b.mechanism, lang: b.lang, message: draft.message, messageEn: draft.messageEn,
         status: 'draft', capChf: b.capChf, thread: [{ from: 'shop', text: draft.message, textEn: draft.messageEn, at: now }],
       });
     }
@@ -222,7 +316,9 @@ export class TaktApp {
       justification: res.value.justification,
       chosenBy: res.source === 'live' || res.source === 'replay' ? 'llm' : 'deterministic',
       explanation: [
-        `Without moving anyone, the earliest delivery would be ${dayLabel(this.boardStart, base.firstFitDay, 'en')} — too late.`,
+        base.firstFitDay > rush.dueDay
+          ? `Without moving anyone, the earliest delivery would be ${dayLabel(this.boardStart, base.firstFitDay, 'en')}: too late for ${dayLabel(this.boardStart, rush.dueDay, 'en')}.`
+          : `There is free capacity: it ships ${dayLabel(this.boardStart, base.firstFitDay, 'en')} without moving anyone.`,
         `Planner simulated ${base.candidatesEvaluated} re-sequencing options on the laser and press brake; ${options.length} feasible plan(s) offered to the agent.`,
         `Firm promises kept untouched: ${firm.join(', ')}.`,
         ...offers.map((o) => `${this.cust(o.customerId)!.name}: +${o.delayDays} day(s) → CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less on their authorization' : 'PayPal Payout, already paid'})`),
@@ -277,7 +373,7 @@ export class TaktApp {
     if (!t) throw new Error('Empty reply');
     const ceiling = offerCeiling(p, o, perJobCap(job));
     const res = await this.agent.reply({ offer: o, customer: c, job, ceilingChf: ceiling, replyText: t, boardStart: this.boardStart });
-    this.state.agent = this.agent.status();
+    this.track(res);
     o.thread.push({ from: 'customer', text: t, at: new Date().toISOString() });
     this.log('agent', `Reply from ${c.name}`, `"${t.length > 120 ? t.slice(0, 119) + '…' : t}"`);
     this.logSteps(res.steps);
@@ -300,7 +396,7 @@ export class TaktApp {
         this.acceptOffer(o, via);
         break;
       case 'counter': {
-        const a = checkAmount(d.compensationChf, ceiling);
+        const a = checkCounter(d.compensationChf, o.openingChf ?? o.compensationChf, ceiling);
         const day = checkDeliveryDay(d.deliveryDay, o.toDay);
         if (!a.ok || !day.ok) {
           o.escalation = `Counter blocked by guardrail: ${!a.ok ? a.error : (day as { error: string }).error}`;
@@ -350,6 +446,7 @@ export class TaktApp {
     o.status = 'declined';
     o.respondedAt = new Date().toISOString();
     this.log('agent', `${c.name} declined`, `${why}. Re-planning without them`);
+    this.state.pastOffers = [...(this.state.pastOffers ?? []).filter((x) => x.id !== o.id), o];
     const old = p.offers;
     const excluded = old.filter((x) => x.status === 'declined').map((x) => x.customerId);
     const np = await this.plan(excluded);
@@ -388,6 +485,10 @@ export class TaktApp {
   }
 
   async approve() {
+    return this.once('approve', () => this.doApprove());
+  }
+
+  private async doApprove() {
     const p = this.state.plan;
     const a = this.state.approval;
     if (!p || !a || this.state.stage !== 'awaiting-approval' || a.status !== 'pending') throw new Error('Nothing to approve');
@@ -399,24 +500,45 @@ export class TaktApp {
       throw new Error(`Guardrail: ${failed[0].label}`);
     }
     a.status = 'approved';
-    this.log('owner', 'Owner approved the money moves', `${a.moves.length} move(s), compensation CHF ${p.compensationTotalChf}, rush CHF ${p.rushPriceChf}`);
+    const done = new Set(a.doneMoveIds ?? []);
+    const retry = done.size > 0;
+    this.log('owner', retry ? 'Owner retried the approval' : 'Owner approved the money moves', `${a.moves.length} move(s), compensation CHF ${p.compensationTotalChf}, rush CHF ${p.rushPriceChf}${retry ? `; ${done.size} already done, skipped` : ''}`);
+    try {
+      await this.moveMoney(p, done);
+    } catch (e) {
+      // A PayPal call failed halfway: keep what succeeded, let the owner retry the rest (never pay twice).
+      a.status = 'pending';
+      a.doneMoveIds = [...done];
+      this.log('system', 'PayPal call failed during approval', `${e instanceof Error ? e.message : String(e)}. ${done.size} of ${a.moves.length} move(s) done; press Approve again to retry the rest`);
+      throw e;
+    }
+    a.doneMoveIds = [...done];
+  }
+
+  private async moveMoney(p: Plan, done: Set<string>) {
     for (const o of p.offers) {
+      const moveId = `MV-${o.id}`;
+      if (done.has(moveId)) continue;
       const c = this.cust(o.customerId)!;
       const job = this.state.jobs.find((j) => j.id === o.jobId)!;
       job.compensationChf = o.compensationChf;
       if (o.mechanism === 'payout') {
         // Payee from the booking record (or the sandbox test account), never from a message.
         const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
-        const res = await this.paypal.createPayout(`takt-${p.id}-${job.id}`, 'Thank you for moving your slot', [
+        // sender_batch_id is unique per run and plan: PayPal rejects a repeat, so a retry can never pay twice.
+        const res = await this.paypal.createPayout(`takt-${this.runId}-${p.id}-${job.id}`, 'Thank you for moving your slot', [
           { receiverEmail, amount: this.money(o.compensationChf), note: `Takt: thank you for moving ${job.id}`, senderItemId: o.id },
         ]);
+        this.ownIds.add(res.payoutBatchId);
         this.log('api', `Payout to ${c.name}`, `POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
       } else if (job.payment.kind === 'authorization') {
         await this.ensureRealAuthorization(job);
         this.log('agent', `Capture-less booked for ${c.name}`, `Will capture CHF ${job.payment.authorizedChf - o.compensationChf} instead of ${job.payment.authorizedChf} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
       }
+      done.add(moveId);
     }
     await this.openRushCheckout();
+    done.add('MV-RUSH');
   }
 
   // ---- 4. Rush customer pays (authorization) --------------------------------------------------------
@@ -434,11 +556,13 @@ export class TaktApp {
     const rush = this.state.rush!;
     const order = await this.paypal.createAuthorizeOrder({
       referenceId: `RUSH-${rush.id}`,
-      invoiceId: `TAKT-${rush.id}-${Date.now().toString(36)}`,
+      invoiceId: `TAKT-RUSH-${rush.id}-${this.runId}-${p.id}`,
       description: `Rush: ${rush.qty}x ${rush.title}`,
       amount: this.money(p.rushPriceChf),
       returnUrl: this.opts.returnUrl,
+      cancelUrl: this.opts.cancelUrl ?? this.opts.returnUrl,
     });
+    this.ownIds.add(order.orderId);
     this.state.rushOrder = { orderId: order.orderId, status: 'created', amountChf: p.rushPriceChf, approveUrl: order.approveUrl };
     this.state.stage = 'awaiting-payment';
     this.log('api', 'Rush order created', `POST /v2/checkout/orders intent=AUTHORIZE CHF ${p.rushPriceChf}`, order.orderId, p.rushPriceChf);
@@ -449,7 +573,31 @@ export class TaktApp {
   async mockApprove() {
     const o = this.state.rushOrder;
     if (!o || !this.paypal.simulateBuyerApproval) throw new Error('Not available');
+    this.state.paypalNotice = undefined;
     await this.paypal.simulateBuyerApproval(o.orderId);
+  }
+
+  /** Mock mode: simulates the buyer pressing "Cancel and return" on the PayPal page. */
+  async mockCancel() {
+    const o = this.state.rushOrder;
+    if (!o || this.paypal.mode !== 'mock') throw new Error('Not available');
+    this.buyerCancelled(o.orderId);
+  }
+
+  /** Does this demo own that PayPal order? (Return / cancel redirects carry only the order id.) */
+  ownsOrder(orderId: string) {
+    return !!orderId && this.state.rushOrder?.orderId === orderId;
+  }
+
+  /** PayPal sent the buyer to cancel_url: nothing was charged, the same approval link stays valid. */
+  buyerCancelled(orderId: string) {
+    const o = this.state.rushOrder;
+    if (!o || o.orderId !== orderId || o.status !== 'created') return false;
+    o.cancelledAt = new Date().toISOString();
+    const text = 'The rush customer cancelled on the PayPal page. Nothing was charged, and the same PayPal link still works if they try again.';
+    this.state.paypalNotice = { kind: 'cancelled', text, at: o.cancelledAt };
+    this.log('system', 'Buyer cancelled in PayPal', `${text} (redirect to cancel_url)`, orderId);
+    return true;
   }
 
   async authorizeRush(orderId: string) {
@@ -462,18 +610,36 @@ export class TaktApp {
       a = await this.paypal.authorizeOrder(orderId);
     } catch (err) {
       o.status = 'created';
+      const why = err instanceof Error ? err.message : String(err);
+      const notApproved = /ORDER_NOT_APPROVED/.test(why);
+      const text = notApproved
+        ? 'PayPal says the buyer has not approved the order yet (did they cancel?). Nothing was charged; the same link still works.'
+        : `Authorizing the rush payment failed: ${why}. Nothing was charged; the buyer can try the link again.`;
+      this.state.paypalNotice = { kind: notApproved ? 'cancelled' : 'error', text, at: new Date().toISOString() };
+      this.log('system', notApproved ? 'Rush order not approved yet' : 'Rush authorization failed', text, orderId);
       throw err;
     }
+    this.state.paypalNotice = undefined;
+    o.cancelledAt = undefined;
     o.authorizationId = a.authorizationId;
+    this.ownIds.add(a.authorizationId);
     this.log('api', 'Rush payment authorized', `POST /v2/checkout/orders/{id}/authorize → ${a.status}; nothing charged until shipment`, a.authorizationId, a.amount.value);
     // Commit happens on the PAYMENT.AUTHORIZATION.CREATED webhook, not here.
   }
 
   // ---- Webhooks: the schedule only commits when PayPal confirms --------------------------------------
+  /** Ids an event refers to: the resource itself, its payout batch, and related order / authorization ids. */
+  private eventIds(r: Record<string, any>): string[] {
+    const rel = r.supplementary_data?.related_ids ?? {};
+    return [r.id, r.payout_batch_id, rel.order_id, rel.authorization_id].filter((x): x is string => typeof x === 'string' && !!x);
+  }
+
   async onPayPalEvent(e: PayPalWebhookEvent) {
+    const r = e.resource as Record<string, any>;
+    // On a shared gateway (sandbox, several demo sessions) every app sees every event: handle only our own.
+    if (!this.eventIds(r).some((id) => this.ownIds.has(id))) return;
     if (this.seen.has(e.id)) return;
     this.seen.add(e.id);
-    const r = e.resource as Record<string, any>;
     this.log('webhook', e.event_type, e.summary, r.id ?? r.payout_batch_id);
     if (e.event_type === 'CHECKOUT.ORDER.APPROVED' && r.id === this.state.rushOrder?.orderId) {
       await this.authorizeRush(r.id);
@@ -519,18 +685,26 @@ export class TaktApp {
 
   // ---- 5. Settle ------------------------------------------------------------------------------------
   async ship(jobId: string) {
+    return this.once(`ship-${jobId}`, () => this.doShip(jobId));
+  }
+
+  private async doShip(jobId: string) {
     const j = this.state.jobs.find((x) => x.id === jobId);
     if (!j || j.status !== 'booked') throw new Error('Job not shippable');
     await this.ensureRealAuthorization(j);
     if (j.payment.kind === 'authorization') {
       const comp = j.compensationChf ?? 0;
       const amount = j.payment.authorizedChf - comp;
+      // invoice_id must be new for every demo run (PayPal: 422 DUPLICATE_TRANSACTION otherwise); the request id is
+      // stable within the run, so a retried or double-clicked capture is idempotent.
       const cap = await this.paypal.captureAuthorization(j.payment.authorizationId, {
         amount: this.money(amount),
         finalCapture: true,
-        invoiceId: `TAKT-${j.id}`,
+        invoiceId: `TAKT-${j.id}-${this.runId}`,
+        requestId: `takt-ship-${this.runId}-${j.id}-${j.payment.authorizationId}`,
         noteToPayer: comp ? `CHF ${comp} less than authorized: thank you for moving your delivery.` : undefined,
       });
+      this.ownIds.add(cap.captureId);
       this.log('api', `Captured ${j.id}`, `POST /v2/payments/authorizations/{id}/capture CHF ${amount}${comp ? ` (authorized ${j.payment.authorizedChf}, −${comp} compensation)` : ''}, final_capture=true`, cap.captureId, amount);
     }
     j.status = 'shipped';

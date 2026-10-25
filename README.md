@@ -3,9 +3,12 @@
 When a job shop's schedule is full and a rush order arrives, Takt makes room. It finds booked customers who can wait, pays them for it through PayPal, and charges the rush customer a premium that covers the compensation. The schedule only changes when PayPal confirms the money moves.
 
 > Status: phase 2.
-> - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It scores 13/13 on the eval.
+> - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It scores 17/17 on the eval.
 > - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock.
-> - **Timeline:** a placeholder until Bryntum Scheduler Pro is wired in.
+> - **Timeline:** a simple one-week board until Bryntum Scheduler Pro is wired in.
+> - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state.
+
+![Cold open: the laser and press brake are full, a rush email arrives](docs/screenshots/0-cold-open.png)
 
 ## Run locally
 
@@ -13,18 +16,22 @@ When a job shop's schedule is full and a rush order arrives, Takt makes room. It
 npm install
 cp .env.example .env     # optional: add PayPal sandbox credentials
 npm run dev              # API on :8787, web on http://localhost:5173
-npm test                 # unit + guardrail tests; demo path 10x with rules and 10x with recorded Claude responses
-npm run agent:eval       # 13-case agent eval (replays recordings, free; add -- --live to re-run on Claude, ~USD 0.01)
+npm test                 # unit, guardrail, HTTP/session tests; demo path 10x with rules and 10x with recorded Claude responses
+npm run agent:eval       # 17-case agent eval (replays recordings, free, report untouched; add -- --live to re-run on Claude, ~USD 0.01)
 npm run dev:sandbox      # same app against the real PayPal sandbox
 npm run smoke:sandbox    # the whole money story against the sandbox, 14 checks (headless buyer approval)
 npm run build && npm start   # production: one process serves API + built web app on :8787
+npm run screenshot [url]     # Playwright demo-path run with checks + screenshots (DEMO_RUNS=3, DEMO_CANCEL_FIRST=1)
 ```
+
+**Hosting (Render or similar).** `npm ci && npm run build`, start `npm start`, health check `/healthz`. Express trusts one proxy hop (`trust proxy`), so client IPs and `https` are correct behind Render. Set `PUBLIC_BASE_URL` to the public URL (otherwise it is taken from the request host); PayPal returns the buyer to `/api/paypal/return` and a cancelled checkout to `/api/paypal/cancel`. Live-AI limits (only live Claude calls count, recorded replays are free and unlimited): `AGENT_MAX_LIVE_PER_SESSION_HOUR` (12), `AGENT_MAX_LIVE_PER_IP_HOUR` (40), `AGENT_MAX_LIVE_PER_DAY` (300), plus the per-process `AGENT_MAX_USD` ceiling. When a limit is reached the step runs on the rules and the UI says so. Also set a spend limit in the Anthropic Console.
 
 Without credentials the header shows **PayPal: MOCK**. The agent badge shows **Claude Haiku 5.5 · live** when `ANTHROPIC_API_KEY` is set, **· recorded** when a scripted demo input is replayed from `server/agent/llm-cache/` (no key needed), or **rules (fallback)**. `AGENT_MODE=deterministic` forces the rules. Once `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set (in `.env`, or in the parent workspace's `.env`), it switches to the real sandbox.
 
 ### Sandbox notes
 
-- **Rush customer:** "Pay with PayPal (sandbox)" opens PayPal's approval page. Log in with a sandbox *personal* account, or use "Pay with credit or debit card" with test card `4005519200000004`, any future expiry, CVV `123`. PayPal sends the buyer back to `/api/paypal/return`, and the server also polls the order, so the flow completes even without the redirect.
+- **Rush customer:** "Pay with PayPal (sandbox)" opens PayPal's approval page. Log in with a sandbox *personal* account (choose the card, not a bank account, as funding), or use "Pay with credit or debit card" with test card `4005519200000004`, any future expiry, CVV `123`. PayPal sends the buyer back to `/api/paypal/return`, and the server also polls the order, so the flow completes even without the redirect. If the buyer cancels on PayPal, the console and the log say so; the same link keeps working.
+- **Repeat runs:** every demo run (and every Reset) gets a run id, so PayPal invoice ids never repeat (`DUPLICATE_TRANSACTION`) while a double-clicked Ship stays idempotent (same `PayPal-Request-Id`).
 - **Seeded bookings** have placeholder authorizations. The first time Takt touches one, it creates a real sandbox authorization for the same amount with PayPal's test card (logged as "Sandbox booking authorization").
 - **Payouts** go to `PAYPAL_SANDBOX_PAYOUT_RECEIVER` when it is set. Otherwise they end `UNCLAIMED`, because the seeded emails have no PayPal account.
 - **No webhooks needed:** after each money move the server polls the resource and feeds a webhook-shaped event (`RECON-…`) into the same handler that verified webhooks use.
@@ -39,8 +46,9 @@ Takt's agent is **Claude Haiku 5.5** (`claude-haiku-5-5`), called through the An
 | **Make room** | Asks the planner for options, decides whom to ask (cost, relationship notes, stated flexibility) and justifies it to the owner. Then writes a personal offer per customer in their language | `plan_bump_options` (the deterministic finite-capacity planner, can exclude customers) → `choose_bump_plan` → `draft_offer` (rejected if the text states a different amount or day) |
 | **Negotiate** | Interprets free-text replies: yes, no, *"d'accord, mais plutôt jeudi matin et CHF 70"*, questions, manipulation attempts. Answers in the customer's language | `accept_offer`, `counter_offer` (re-checked against caps and feasible dates), `reply_to_customer`, `decline_offer` (→ re-plan), `escalate_to_owner` |
 
-**Guardrails.** Code, not the model, decides every amount. These limits hold whatever the model writes:
+**Guardrails.** Code, not the model, decides every amount. These limits hold whatever the model writes, for Claude and for the rules fallback alike:
 - per-job cap of 12 % of the job price;
+- minimal concession: a counter-offer is agreed without the owner only up to the opening amount + 50 % (at least CHF 20); bigger asks get one modest step up (CHF 10-30) and then go to the owner;
 - rush budget: all compensations together at most 60 % of the rush premium;
 - margin floor of CHF 150;
 - delivery dates no earlier than the planner allows;
@@ -49,11 +57,11 @@ Takt's agent is **Claude Haiku 5.5** (`claude-haiku-5-5`), called through the An
 Payees always come from booking records. Customer text is wrapped as untrusted data. **No money moves until the shop owner clicks "Approve & send to PayPal"**, and the checks are re-run at that moment. Every tool call, guardrail rejection, approval and PayPal call appears in the **PayPal & agent log**.
 
 **Never fails on stage.**
-- If the API errors, is rate-limited, hits the spend ceiling, refuses, or doesn't finish, that step runs on the rule-based agent and the badge says so.
+- If the API errors, is rate-limited, hits the spend ceiling, refuses, or doesn't finish, that step runs on the rule-based agent and the badge and a note in the flow say so. The rules never invent an order: unreadable text ("hello") gets a question to the owner instead of a job.
 - Responses for the scripted demo inputs are recorded (record/replay keyed by the exact request), so the hosted demo and the video replay real Claude output at zero cost.
-- New inputs go live, limited per IP and by a per-process USD ceiling.
+- New inputs go live, limited per session, per IP and per day, and by a per-process USD ceiling. Replays never count.
 
-**Eval.** [docs/AGENT_EVAL.md](docs/AGENT_EVAL.md): 13/13 cases pass on a live run, for USD 0.007 in total. The cases cover DE/FR/EN intake, plans, accept, decline, counter, over-cap and question replies, and a prompt injection that demands a CHF 2000 payout to a new email; that one is escalated to the owner and nothing changes.
+**Eval.** [docs/AGENT_EVAL.md](docs/AGENT_EVAL.md): 17/17 cases pass (the full live run cost USD 0.007; the FR/DE path cases were added later for USD 0.003). The cases cover DE/FR/EN intake, plans (each sample is a real squeeze: the FR email bumps the French and a German customer), the scripted replies on the DE and FR paths, accept, decline, counter, over-cap and question replies, and a prompt injection that demands a CHF 2000 payout to a new email; that one is escalated to the owner and nothing changes.
 
 ![Agent flow: replies negotiated by Claude, owner approval with guardrail checks](docs/screenshots/3c-owner-approval.png)
 
@@ -65,9 +73,9 @@ Payees always come from booking records. Customer text is wrapped as untrusted d
 | Owner approves the money moves | Nothing below runs before this click; guardrail checks are re-run |
 | Bumped customer who booked with an authorization | At shipment: `POST /v2/payments/authorizations/{id}/capture` for the authorized amount minus the compensation, with `final_capture:true` |
 | Bumped customer who already paid in full | `POST /v1/payments/payouts` |
-| Cancellation | `POST /v2/payments/authorizations/{id}/void` |
-| Late-delivery policy | `POST /v2/payments/captures/{id}/refund` |
-| Long jobs | `POST /v2/payments/authorizations/{id}/reauthorize` (after the 3-day honor period) |
+| Cancellation | `POST /v2/payments/authorizations/{id}/void` (API route `/api/jobs/:id/cancel`; no button yet) |
+| Late-delivery policy | `POST /v2/payments/captures/{id}/refund` (verified by `npm run smoke:sandbox`; not in the UI yet) |
+| Long jobs | `POST /v2/payments/authorizations/{id}/reauthorize` after the 3-day honor period (verified by the smoke script; not in the UI yet) |
 | Confirmation | Reconcile by polling `GET` order / authorization / payout. Webhooks (`PAYMENT.AUTHORIZATION.CREATED`, `PAYMENT.PAYOUTS-ITEM.SUCCEEDED`, …) go through the same handler once hosted, verified with `/v1/notifications/verify-webhook-signature` |
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture diagram, the agent sequence and the guardrails. See [docs/SPIKE.md](docs/SPIKE.md) for the API verification log.

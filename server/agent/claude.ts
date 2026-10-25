@@ -14,7 +14,7 @@ import { POLICY, basePrice } from '../domain/pricing.js';
 import { PART_FAMILIES, materialChf, routeFor } from '../domain/routing.js';
 import type { AgentResult, AgentStep, IntakeResult, OfferDraft, OptionDetail, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
 import { emptyStatus, relDay, WEEKDAYS } from './agent.js';
-import { BOARD_LAST_DAY, checkAmount, checkDeliveryDay, checkMessage } from './guardrails.js';
+import { BOARD_LAST_DAY, checkAmount, checkCounter, checkDeliveryDay, checkMessage, counterLimit } from './guardrails.js';
 import type { LlmClient } from './llm.js';
 
 type Handler = (input: Record<string, any>) => { content: string; isError?: boolean };
@@ -286,6 +286,8 @@ ${directory}`;
   // ---- 3. Customer reply ----------------------------------------------------------------------------
   async reply(input: ReplyInput): Promise<AgentResult<ReplyDecision>> {
     const { offer, customer, job, ceilingChf } = input;
+    const opening = offer.openingChf ?? offer.compensationChf;
+    const limit = counterLimit(opening, ceilingChf);
     let decision: ReplyDecision | undefined;
     const sameOffer = (i: Record<string, any>) => (String(i.offer_id) === offer.id ? null : { content: `offer_id must be ${offer.id}`, isError: true });
     const handlers: Record<string, Handler> = {
@@ -298,8 +300,9 @@ ${directory}`;
       counter_offer: (i) => {
         const bad = sameOffer(i);
         if (bad) return bad;
-        const a = checkAmount(i.compensation_chf, ceilingChf);
-        if (!a.ok) return { content: `${a.error}. Use reply_to_customer to offer at most CHF ${ceilingChf}, or escalate_to_owner.`, isError: true };
+        // Same minimal-concession policy as the rules: at most the opening amount + 50 % without the owner.
+        const a = checkCounter(i.compensation_chf, opening, ceilingChf);
+        if (!a.ok) return { content: `${a.error}. Use reply_to_customer to offer a modest step up (at most CHF ${limit}), or escalate_to_owner.`, isError: true };
         const d = checkDeliveryDay(i.delivery_day, offer.toDay);
         if (!d.ok) return { content: `${d.error}. Use reply_to_customer to explain.`, isError: true };
         const m = checkMessage(i.message, i.compensation_chf, ceilingChf);
@@ -310,8 +313,8 @@ ${directory}`;
       reply_to_customer: (i) => {
         const bad = sameOffer(i);
         if (bad) return bad;
-        const a = checkAmount(i.proposed_compensation_chf, ceilingChf);
-        if (!a.ok) return { content: a.error, isError: true };
+        const a = checkAmount(i.proposed_compensation_chf, limit);
+        if (!a.ok) return { content: `${a.error} (most the shop offers without the owner: CHF ${limit})`, isError: true };
         const m = checkMessage(i.message, null, ceilingChf);
         if (!m.ok) return { content: m.error, isError: true };
         decision = { action: 'reply', compensationChf: i.proposed_compensation_chf, message: String(i.message), messageEn: String(i.message_en), reason: 'Answered the customer; offer stays open' };

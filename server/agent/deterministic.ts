@@ -4,8 +4,8 @@ import type { AgentStatus, Lang } from '../../shared/types.js';
 import { basePrice } from '../domain/pricing.js';
 import { materialChf, routeFor } from '../domain/routing.js';
 import type { AgentResult, BumpDetail, IntakeResult, OfferDraft, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
-import { dayLabel, emptyStatus, WEEKDAYS } from './agent.js';
-import { checkAmount, checkDeliveryDay, chfAmounts } from './guardrails.js';
+import { dayLabel, emptyStatus, NeedsClarification, WEEKDAYS } from './agent.js';
+import { checkCounter, checkDeliveryDay, chfAmounts, concessionStep, counterLimit } from './guardrails.js';
 
 const NUM_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, eight: 8, ten: 10, twelve: 12,
@@ -76,23 +76,36 @@ export class DeterministicAgent implements RushAgent {
   }
 }
 
+/**
+ * Regex intake. It never invents an order: without a recognisable part, or with neither a quantity nor a day, it
+ * throws NeedsClarification and the owner is asked to complete the request.
+ */
 export function parseIntake(text: string): IntakeResult {
   const t = text.toLowerCase();
   const numM = t.match(/(?<![\w.,'])(?<!chf\s?)(\d{1,3})(?![\d.,]*\s*(?:mm|h\b|uhr|%|chf|fr\b))/);
   const wordM = t.match(/\b(one|two|three|four|five|six|eight|ten|twelve|zwei|drei|vier|fünf|sechs|acht|zehn|zwölf|deux|trois|quatre|cinq|huit|dix|douze)\b/);
+  const partM = PARTS.find(([re]) => re.test(t));
+  const dayM = findDay(text);
+  const missing = [!partM && 'part', !numM && !wordM && 'quantity', dayM === undefined && 'needed-by day'].filter(Boolean) as string[];
+  if (!partM || missing.length >= 2) {
+    throw new NeedsClarification(missing, `Could not read a job from this request (missing: ${missing.join(', ')}). Nothing was planned; please complete it, e.g. "6 brackets S355 8 mm by Tuesday".`);
+  }
   const qty = numM ? Number(numM[1]) : wordM ? NUM_WORDS[wordM[1]] : 1;
   const thick = Number(t.match(/(\d+(?:[.,]\d+)?)\s*mm/)?.[1]?.replace(',', '.') ?? 3);
   const grade = text.match(/\b(S\d{3}|Inox|1\.4301|Alu\s?\d{4}|Ti)\b/i)?.[1] ?? 'S355';
-  const part = PARTS.find(([re]) => re.test(t))?.[1] ?? 'part';
-  const dueDay = findDay(text) ?? 1;
+  const part = partM[1];
+  const dueDay = dayM ?? 1;
   const lang = detectLang(t);
   const ops = routeFor(part, qty, thick);
-  const sig = text.match(/(?:—|–|-|from|von|de)\s*([A-ZÄÖÜ][\wäöüéè-]+(?:\s[A-ZÄÖÜ][\wäöüéè-]+){0,3})\s*,\s*([A-ZÄÖÜ][\wäöüéè\s-]+?)\s*$/m);
-  const title = part === 'part' ? 'Parts' : `${part[0].toUpperCase()}${part.slice(1)}s`;
+  // Signature: "— Thomas Schmid, Escholzmatt" / "Gruss Thomas Schmid, Hof Schmid, Escholzmatt" / "Merci ! Claire Dubois, Fromagerie du Jorat, Mézières"
+  const sigM = text.match(/(?:—|–|\bgruss|\bgrüsse|\bgrüße|\bmerci d'avance\s*!?|\bmerci\s*!|\bcordialement|\bthanks|\bregards|\bbest)[\s,]*([A-ZÄÖÜ][^\n—–]*?)\s*$/i);
+  const sigParts = sigM?.[1].split(',').map((x) => x.trim()).filter(Boolean) ?? [];
+  const sig = sigParts.length >= 2 ? { contact: sigParts[0], company: sigParts.length >= 3 ? sigParts[1] : sigParts[0], city: sigParts[sigParts.length - 1] } : undefined;
+  const title = `${part[0].toUpperCase()}${part.slice(1)}s`;
   return {
-    customerName: sig ? sig[1] : 'Hof Schmid (farm)',
-    contact: sig?.[1] ?? 'Thomas Schmid',
-    city: sig?.[2]?.trim() ?? 'Escholzmatt',
+    customerName: sig?.company ?? 'Rush customer (name not found)',
+    contact: sig?.contact ?? 'unknown',
+    city: sig?.city ?? 'unknown',
     lang,
     title: `${title} (rush)`,
     material: `${grade} ${thick} mm`,
@@ -133,11 +146,11 @@ const INJECTION = /ignore (all|any|the|previous|your)|instructions|system prompt
 const ACCEPT = /\b(ok|okay|yes|ja|oui|d'accord|daccord|einverstanden|passt|gerne|parfait|fine|deal|agreed|volontiers|bien sûr|no problem|kein problem|pas de (souci|problème)|sounds good|abgemacht|super)\b/i;
 const DECLINE = /\b(no|nein|non|leider|can't|cannot|can not|impossible|unfortunately|sorry|pas possible|geht nicht|nicht möglich|désolé)\b/i;
 
-const SHOP_REPLY: Record<'cap' | 'early' | 'confirm', Record<Lang, (chf: number, day: string) => string>> = {
-  cap: {
-    en: (c) => `Thank you! The most we can offer for this move is CHF ${c}. Shall we go ahead on that basis?`,
-    de: (c) => `Vielen Dank! Für diese Verschiebung können wir höchstens CHF ${c} anbieten. Sollen wir so verbleiben?`,
-    fr: (c) => `Merci ! Pour ce report, nous pouvons offrir au maximum CHF ${c}. Est-ce que cela vous convient ?`,
+const SHOP_REPLY: Record<'step' | 'early' | 'confirm', Record<Lang, (chf: number, day: string) => string>> = {
+  step: {
+    en: (c) => `Thank you! We cannot go that high for this move, but we can offer CHF ${c}. Shall we go ahead on that basis?`,
+    de: (c) => `Vielen Dank! So viel können wir für diese Verschiebung leider nicht geben, aber wir bieten Ihnen CHF ${c}. Sollen wir so verbleiben?`,
+    fr: (c) => `Merci ! Nous ne pouvons pas aller aussi loin pour ce report, mais nous pouvons vous offrir CHF ${c}. Est-ce que cela vous convient ?`,
   },
   early: {
     en: (c, d) => `Thank you! The earliest we can deliver is ${d}, with CHF ${c} as a thank-you. Does that work?`,
@@ -151,21 +164,34 @@ const SHOP_REPLY: Record<'cap' | 'early' | 'confirm', Record<Lang, (chf: number,
   },
 };
 
+/**
+ * Keyword reply parsing with the same guardrails as Claude's tools plus a minimal-concession policy:
+ * - a counter within counterLimit (opening + 50 %, at least CHF 20, never above the cap) is agreed;
+ * - a bigger ask gets one modest step up (CHF 10-30), never the full cap;
+ * - asking for more again after that step goes to the owner.
+ */
 export function parseReply(input: ReplyInput): ReplyDecision {
   const { offer, replyText, ceilingChf, boardStart } = input;
   const lang = offer.lang;
   const text = replyText.trim();
   if (INJECTION.test(text)) return { action: 'escalate', reason: 'Reply contains instructions, links or payment details: handed to the owner' };
+  const opening = offer.openingChf ?? offer.compensationChf;
   const amounts = chfAmounts(text);
   const day = findDay(text);
-  const chf = amounts.length ? Math.max(...amounts) : offer.compensationChf;
+  const ask = amounts.length ? Math.round(Math.max(...amounts)) : offer.compensationChf;
   const toDay = day ?? offer.toDay;
   const wantsChange = amounts.some((a) => a !== offer.compensationChf) || (day !== undefined && day !== offer.toDay);
   const msg = (k: keyof typeof SHOP_REPLY, c: number, d: number) => ({ message: SHOP_REPLY[k][lang](c, dayLabel(boardStart, d, lang)), messageEn: SHOP_REPLY[k].en(c, dayLabel(boardStart, d, 'en')) });
   if (wantsChange) {
-    if (!checkAmount(chf, ceilingChf).ok) return { action: 'reply', compensationChf: ceilingChf, reason: `Counter of CHF ${chf} is above the cap CHF ${ceilingChf}`, ...msg('cap', ceilingChf, offer.toDay) };
     if (!checkDeliveryDay(toDay, offer.toDay).ok) return { action: 'reply', compensationChf: offer.compensationChf, reason: 'Requested date is earlier than feasible', ...msg('early', offer.compensationChf, offer.toDay) };
-    return { action: 'counter', compensationChf: chf, deliveryDay: toDay, reason: `Counter-offer within limits: CHF ${chf}, day ${toDay}`, ...msg('confirm', chf, toDay) };
+    if (checkCounter(ask, opening, ceilingChf).ok) return { action: 'counter', compensationChf: ask, deliveryDay: toDay, reason: `Counter-offer within limits: CHF ${ask}, day ${toDay}`, ...msg('confirm', ask, toDay) };
+    const limit = counterLimit(opening, ceilingChf);
+    const steppedAlready = offer.compensationChf > opening || offer.thread.filter((m) => m.from === 'shop').length > 1;
+    const next = concessionStep(offer.compensationChf, opening, ceilingChf);
+    if (steppedAlready || next <= offer.compensationChf) {
+      return { action: 'escalate', reason: `Customer asks CHF ${ask}; the shop already offered CHF ${offer.compensationChf} (limit without the owner CHF ${limit}). Owner decides` };
+    }
+    return { action: 'reply', compensationChf: next, reason: `Ask of CHF ${ask} is above what the shop agrees to without the owner (CHF ${limit}): one step up to CHF ${next}`, ...msg('step', next, offer.toDay) };
   }
   if (ACCEPT.test(text)) return { action: 'accept', reason: 'Reply reads as a yes', ...msg('confirm', offer.compensationChf, offer.toDay) };
   if (DECLINE.test(text)) return { action: 'decline', reason: 'Reply reads as a no' };

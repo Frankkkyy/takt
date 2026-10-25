@@ -20,11 +20,11 @@ body { margin: 0; background: var(--bg); }
 code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background: #eef1f6; padding: 1px 4px; border-radius: 4px; }
 
 .app { min-height: 100vh; display: flex; flex-direction: column; }
-.top { display: flex; align-items: center; gap: 24px; padding: 10px 20px; background: var(--navy); color: #fff; flex-wrap: wrap; }
+.top { display: flex; align-items: center; gap: 18px; padding: 10px 20px; background: var(--navy); color: #fff; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand .logo { font-size: 26px; color: var(--paypal); }
 .brand b { font-size: 20px; display: block; letter-spacing: .5px; }
-.brand small { color: #c5d3e8; }
+.brand small { color: #ffd98a; font-size: 13px; font-weight: 600; letter-spacing: .2px; }
 .shop { color: #c5d3e8; font-size: 14px; }
 .yield { display: flex; gap: 18px; margin-left: auto; }
 .yield div { display: flex; flex-direction: column; }
@@ -167,3 +167,62 @@ table.options { width: 100%; border-collapse: collapse; font-size: 12px; }
 .bubble.shop { color: var(--ink); opacity: 1; }
 .offer-msg { white-space: pre-line; }
 .src-tool .detail { font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+
+/* cold open: the shop is full -> rush email -> hook (CSS-timed so a recording is the same every take) */
+.story { margin: 16px 16px 0; padding: 22px 26px; border-radius: 12px; background: linear-gradient(135deg, #14273f, #1f3a5f); color: #fff; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px 28px; align-items: start; }
+.story-clock { grid-column: 1 / -1; color: #c5d3e8; font-size: 13px; letter-spacing: .3px; }
+.story h1 { margin: 0; font-size: 30px; line-height: 1.15; grid-column: 1; }
+.util { grid-column: 1; display: flex; flex-direction: column; gap: 6px; }
+.util-row { display: grid; grid-template-columns: 150px 1fr 48px; gap: 10px; align-items: center; font-size: 13px; color: #dbe5f3; }
+.util-row b { text-align: right; font-variant-numeric: tabular-nums; }
+.meter { height: 10px; background: rgba(255,255,255,.12); border-radius: 99px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: #7ea7d8; border-radius: 99px; animation: fill 1.2s ease-out both; }
+.util-row.full .meter i { background: #ff8f6b; }
+.util-row.full b { color: #ffb59d; }
+.util .small { font-size: 13px; color: #c5d3e8; margin: 4px 0 0; }
+.util .small b { color: #fff; }
+.mail-toast { grid-column: 2; grid-row: 2 / span 2; align-self: center; display: grid; grid-template-columns: 40px 1fr; gap: 6px 12px; background: #fff; color: var(--ink); border-radius: 12px; padding: 14px 16px; box-shadow: 0 16px 40px rgba(0,0,0,.35); animation: slideIn .6s cubic-bezier(.2,.9,.3,1.2) 2.2s both; }
+.mail-icon { font-size: 26px; grid-row: 1 / span 2; color: var(--navy); }
+.mail-body { display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.mail-body b { font-size: 16px; }
+.mail-body small { color: var(--muted); }
+.mail-toast .btn { grid-column: 2; justify-self: start; }
+.hook { grid-column: 1 / -1; margin: 4px 0 0; font-size: 22px; color: #ffd98a; animation: fadeUp .8s ease 4.2s both; }
+.hook b { color: #fff; }
+@keyframes slideIn { from { transform: translateX(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fadeUp { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fill { from { width: 0; } }
+@media (max-width: 900px) { .story { grid-template-columns: 1fr; } .mail-toast { grid-column: 1; grid-row: auto; } .story h1 { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) { .mail-toast, .hook, .meter i { animation: none; } }
+
+/* board zoom */
+.zoom { display: flex; gap: 2px; background: #e8ecf2; border-radius: 6px; padding: 2px; }
+.zoom button { font: inherit; font-size: 11px; border: 0; background: transparent; padding: 3px 6px; border-radius: 4px; cursor: pointer; color: var(--muted); }
+.zoom button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
+.bar-id { text-overflow: ellipsis; overflow: hidden; }
+.bar-cust { display: block; text-overflow: ellipsis; overflow: hidden; font-size: 10px; }
+
+/* log: humanised, raw tool JSON behind a toggle */
+.ledger .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+.ledger details.detail { flex-basis: 100%; }
+.ledger details summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+.ledger details span { display: block; font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--muted); white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+
+/* offers */
+.phone-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.open-phone { font-size: 12px; color: var(--navy); }
+.demo-helper { border-top: 1px dashed var(--line); padding-top: 6px; font-size: 11px; }
+.demo-helper summary { cursor: pointer; color: var(--muted); }
+.demo-helper .chips { margin: 6px 0 4px; }
+.pay-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.btn.ghost.dark { color: var(--ink); border-color: #b9c2cf; }
+.phone.standalone .owner-only { display: none; }
+.owner-only { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+/* a real phone already has a bezel: drop ours on small screens (customer offer page) */
+@media (max-width: 520px) {
+  .offer-page { padding: 0; place-items: start stretch; }
+  .phone.standalone { width: 100%; border-radius: 0; background: none; padding: 0; box-shadow: none; }
+  .phone.standalone .phone-notch { display: none; }
+  .phone.standalone .phone-screen { border-radius: 0; padding: 18px 16px 24px; min-height: 100vh; }
+}
+@media (max-width: 1360px) { .yield { gap: 12px; } .yield b { font-size: 15px; } .shop { display: none; } }

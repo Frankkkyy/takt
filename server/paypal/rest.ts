@@ -55,8 +55,11 @@ export class RestPayPal implements PayPalGateway {
     this.approvalTimeoutMs = opts.approvalTimeoutMs ?? 20 * 60_000;
   }
 
-  onEvent(h: (e: PayPalWebhookEvent) => void) { this.handlers.push(h); }
-  dispatch(e: PayPalWebhookEvent) { for (const h of this.handlers) h(e); }
+  onEvent(h: (e: PayPalWebhookEvent) => void) {
+    this.handlers.push(h);
+    return () => { this.handlers = this.handlers.filter((x) => x !== h); };
+  }
+  dispatch(e: PayPalWebhookEvent) { for (const h of [...this.handlers]) h(e); }
 
   private reconciled(event_type: string, resource_type: string, summary: string, resource: Json, key: string) {
     this.dispatch({ id: `RECON-${event_type}-${key}`, event_type, resource_type, summary, resource, create_time: new Date().toISOString() });
@@ -189,7 +192,7 @@ export class RestPayPal implements PayPalGateway {
       final_capture: i.finalCapture,
       ...(i.invoiceId ? { invoice_id: i.invoiceId } : {}),
       ...(i.noteToPayer ? { note_to_payer: i.noteToPayer.slice(0, 255) } : {}),
-    }, randomUUID());
+    }, i.requestId ?? randomUUID());
     return { captureId: r.id, status: r.status, amount: money(r.amount) };
   }
 

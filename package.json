@@ -13,7 +13,7 @@
     "build": "tsc --noEmit && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test server/app.test.ts server/agent/guardrails.test.ts server/agent/agent.test.ts",
+    "test": "tsx --test server/app.test.ts server/http.test.ts server/agent/guardrails.test.ts server/agent/agent.test.ts",
     "agent:eval": "tsx scripts/agent-eval.ts",
     "screenshot": "tsx scripts/screenshot.ts",
     "smoke:sandbox": "tsx scripts/sandbox-smoke.ts",

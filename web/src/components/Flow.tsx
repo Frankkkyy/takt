@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import type { DemoState } from '../../../shared/types';
-import { chf, dayShort, post } from '../api';
+import { chf, dayLong, dayShort, post } from '../api';
 import { OfferCard } from './Offer';
 import { RUSH_SAMPLES } from '../samples';
-
-const DEFAULT_REQUEST = RUSH_SAMPLES[0].text;
 
 function AgentTag({ by, state }: { by: 'llm' | 'deterministic'; state: DemoState }) {
   const a = state.agent;
@@ -23,8 +21,19 @@ const STEPS: { key: DemoState['stage'][]; label: string }[] = [
   { key: ['committed'], label: 'Committed' },
 ];
 
-export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoState) => void }) {
-  const [text, setText] = useState(DEFAULT_REQUEST);
+/** Shown whenever Claude was not used for the last step (limits, no key, API error): the demo never hides it. */
+function FallbackNote({ state }: { state: DemoState }) {
+  const a = state.agent;
+  if (a.configured !== 'llm' || a.last !== 'fallback') return null;
+  return (
+    <p className="callout warn small" role="status">
+      <b>Rules fallback:</b> Claude was not used for this step ({a.fallbackReason ?? 'unavailable'}). The rule-based agent
+      answered with the same guardrails. The scripted demo inputs (chips) still replay recorded Claude output.
+    </p>
+  );
+}
+
+export function Flow({ state, onState, draft: text, setDraft: setText }: { state: DemoState; onState: (s: DemoState) => void; draft: string; setDraft: (t: string) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const run = async (label: string, path: string, body?: unknown) => {
@@ -49,6 +58,7 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
           <li key={s.label} className={i < active ? 'done' : i === active ? 'active' : ''}>{s.label}</li>
         ))}
       </ol>
+      <FallbackNote state={state} />
 
       {(stage === 'idle' || stage === 'intake') && (
         <section className="card">
@@ -66,6 +76,12 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
           <button className="btn primary" disabled={!!busy} onClick={() => run('intake', '/api/rush/intake', { text })}>
             {busy === 'intake' ? 'Agent is reading…' : 'Let Takt read it'}
           </button>
+          {state.intakeQuestion && !rush && (
+            <p className="callout warn" role="alert">
+              <b>Takt needs the owner:</b> it could not find the {state.intakeQuestion.missing.join(', ') || 'job details'} in this request, so nothing was planned and no order was invented.
+              Add them (for example "6 brackets S355 8 mm by Tuesday") and try again.
+            </p>
+          )}
           {rush && (
             <div className="extracted">
               <div className="kv"><span>Extracted by</span><AgentTag by={rush.extractedBy} state={state} /></div>
@@ -74,7 +90,11 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
               <div className="kv"><span>Routing</span><b>{rush.ops.map((o) => `${o.label} ${o.hours} h (${o.machineId})`).join(' → ')}</b></div>
               <div className="kv"><span>Needed by</span><b>{dayShort(state.boardStartIso, rush.dueDay)} evening</b></div>
               <div className="kv"><span>Base price</span><b>{chf(rush.basePriceChf)}</b> <small className="muted">rate card, not AI</small></div>
-              <p className="callout warn">The laser and press brake are fully booked. Takt can look for customers willing to wait.</p>
+              {rush.firstFitDay !== undefined && rush.firstFitDay > rush.dueDay ? (
+                <p className="callout warn">If nobody moves, this job ships <b>{dayLong(state.boardStartIso, rush.firstFitDay)}</b>: too late for {dayLong(state.boardStartIso, rush.dueDay)}. Takt can ask customers who said they are flexible to wait, for money.</p>
+              ) : (
+                <p className="callout good">There is free capacity: it ships {rush.firstFitDay !== undefined ? dayLong(state.boardStartIso, rush.firstFitDay) : 'in time'} without moving anyone.</p>
+              )}
               <button className="btn accent" disabled={!!busy} onClick={() => run('plan', '/api/rush/plan')}>
                 {busy === 'plan' ? 'Planner + agent working…' : 'Make room'}
               </button>
@@ -122,7 +142,9 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
           <div className="kv"><span>Compensation budget (code cap)</span><b>{chf(plan.budgetCapChf)}</b></div>
           <div className="kv total"><span>Net uplift</span><b className="good">+{chf(plan.netUpliftChf)}</b></div>
           {plan.feasible && (
-            <button className="btn primary" disabled={!!busy} onClick={() => run('send', '/api/offers/send')}>Send offers</button>
+            <button className="btn primary" disabled={!!busy} onClick={() => run('send', '/api/offers/send')}>
+              {plan.offers.length ? `Send ${plan.offers.length} offer${plan.offers.length > 1 ? 's' : ''}` : 'Book the rush (nobody moves)'}
+            </button>
           )}
         </section>
       )}
@@ -152,9 +174,14 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
       {(stage === 'offers-sent' || stage === 'awaiting-approval') && plan && (
         <section className="card">
           <h2>{stage === 'offers-sent' ? 'Waiting for answers' : 'Answers'}</h2>
-          <p className="muted">Each customer gets a one-page offer in their language. They can tap a button or answer in their own words; the agent reads the reply, code checks the caps. Phone link: <code>#/offer/&lt;id&gt;</code></p>
+          <p className="muted">Each customer gets a one-page offer in their language. They tap a button or answer in their own words; the agent reads the reply, code checks the caps.</p>
           <div className="phones">
-            {plan.offers.map((o) => <OfferCard key={o.id} offer={o} state={state} onState={onState} />)}
+            {plan.offers.map((o) => (
+              <div key={o.id} className="phone-wrap">
+                <a className="open-phone" href={`#/offer/${o.id}`} target="_blank" rel="noreferrer">Open {state.customers.find((c) => c.id === o.customerId)?.name}'s page on a phone ↗</a>
+                <OfferCard offer={o} state={state} onState={onState} />
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -164,10 +191,18 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
           <h2>{stage === 'committed' ? 'Schedule committed' : 'Rush customer approves'}</h2>
           <div className="kv"><span>{rush?.customer.name}</span><b>{chf(plan.rushPriceChf)}</b></div>
           <p className="muted">Authorization only — charged when the brackets ship.</p>
+          {stage === 'awaiting-payment' && state.paypalNotice && (
+            <p className={`callout ${state.paypalNotice.kind === 'error' ? 'bad' : 'warn'}`} role="alert" id="paypal-notice">{state.paypalNotice.text}</p>
+          )}
           {stage === 'awaiting-payment' && state.modes.paypal === 'mock' && (
-            <button className="btn paypal" disabled={!!busy} onClick={() => run('approve', '/api/rush/mock-approve')}>
-              Pay with PayPal <small>(mock)</small>
-            </button>
+            <div className="pay-row">
+              <button className="btn paypal" disabled={!!busy} onClick={() => run('approve', '/api/rush/mock-approve')}>
+                Pay with PayPal <small>(mock)</small>
+              </button>
+              {state.rushOrder?.status === 'created' && (
+                <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('cancel', '/api/rush/mock-cancel')} title="Simulates the buyer pressing Cancel on the PayPal page">Buyer cancels (mock)</button>
+              )}
+            </div>
           )}
           {stage === 'awaiting-payment' && state.modes.paypal === 'sandbox' && (
             // Redirect approval on the real PayPal sandbox; the server reconciles by polling the order.
@@ -185,11 +220,17 @@ export function Flow({ state, onState }: { state: DemoState; onState: (s: DemoSt
               <p className="callout good">Confirmed by PayPal. Nobody let down: {plan.offers.length} customer(s) agreed and are compensated.</p>
               <h3>Settle</h3>
               <div className="settle">
-                {state.jobs.filter((j) => j.status === 'booked' && (j.rush || j.compensationChf)).map((j) => (
+                {state.jobs.filter((j) => (j.rush || j.compensationChf) && j.status !== 'cancelled').map((j) => (
                   <div key={j.id} className="offer-row">
-                    <b>{j.id}</b>
-                    <span>{j.payment.kind === 'authorization' ? `capture ${chf(j.payment.authorizedChf - (j.compensationChf ?? 0))}` : 'prepaid (paid out)'}</span>
-                    {j.payment.kind === 'authorization' && (
+                    <b>{j.id} · {state.customers.find((c) => c.id === j.customerId)?.name ?? (j.rush ? rush?.customer.name : '')}</b>
+                    <span>{j.status === 'shipped'
+                      ? <span className="good">✓ {j.payment.kind === 'authorization'
+                          ? `captured ${chf(j.payment.authorizedChf - (j.compensationChf ?? 0))} of ${chf(j.payment.authorizedChf)}${j.compensationChf ? `: ${chf(j.compensationChf)} less, no refund, no second payment` : ''}`
+                          : 'shipped'}</span>
+                      : j.payment.kind === 'authorization'
+                        ? <>capture {chf(j.payment.authorizedChf - (j.compensationChf ?? 0))}{j.compensationChf ? <small className="muted"> of {chf(j.payment.authorizedChf)}</small> : null}</>
+                        : 'prepaid · compensation paid out'}</span>
+                    {j.payment.kind === 'authorization' && j.status === 'booked' && (
                       <button className="btn small" disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)}>Ship</button>
                     )}
                   </div>

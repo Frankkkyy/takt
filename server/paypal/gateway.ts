@@ -37,6 +37,8 @@ export interface CaptureInput {
   finalCapture: boolean;
   invoiceId?: string;
   noteToPayer?: string;
+  /** PayPal-Request-Id: the same key within one demo run makes a retried/double-clicked capture idempotent. */
+  requestId?: string;
 }
 
 export interface CaptureResult {
@@ -105,8 +107,8 @@ export interface PayPalGateway {
   createPayout(batchId: string, emailSubject: string, items: PayoutItemInput[]): Promise<PayoutResult>;
   getPayout(payoutBatchId: string): Promise<PayoutResult>;
   verifyWebhook(headers: Record<string, string | undefined>, rawBody: string): Promise<boolean>;
-  /** Subscribe to (mock-generated or real, verified) webhook events. */
-  onEvent(handler: (e: PayPalWebhookEvent) => void): void;
+  /** Subscribe to (mock-generated or real, verified) webhook events. Returns an unsubscribe function. */
+  onEvent(handler: (e: PayPalWebhookEvent) => void): () => void;
   /** Called by the webhook route after verification (sandbox), or internally (mock). */
   dispatch(e: PayPalWebhookEvent): void;
 }

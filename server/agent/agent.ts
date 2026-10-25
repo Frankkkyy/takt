@@ -19,6 +19,16 @@ export interface IntakeResult {
   notes?: string;
 }
 
+/**
+ * Thrown by an intake that cannot read a job from the text (no part, quantity or date). Takt then asks the owner
+ * instead of inventing an order.
+ */
+export class NeedsClarification extends Error {
+  constructor(readonly missing: string[], message: string) {
+    super(message);
+  }
+}
+
 export interface OfferDraft {
   message: string;
   messageEn: string;
