@@ -226,3 +226,34 @@ table.options { width: 100%; border-collapse: collapse; font-size: 12px; }
   .phone.standalone .phone-screen { border-radius: 0; padding: 18px 16px 24px; min-height: 100vh; }
 }
 @media (max-width: 1360px) { .yield { gap: 12px; } .yield b { font-size: 15px; } .shop { display: none; } }
+
+/* PayPal: rush checkout (JS SDK v6) and per-job timeline */
+.sdk-pay { display: flex; flex-direction: column; gap: 6px; }
+.sdk-pay paypal-button { display: block; min-height: 45px; }
+.phone.checkout .phone-screen .small { font-size: 12px; }
+.link.small { font-size: 12px; color: var(--navy); }
+.pp-box { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 12px; background: #fbfcfe; }
+.pp-box summary { cursor: pointer; color: var(--navy); font-weight: 600; }
+.pp-box .btn { margin-top: 6px; }
+.pp-trail { list-style: none; margin: 6px 0 0; padding: 0 0 0 10px; border-left: 2px solid #d6dde8; display: flex; flex-direction: column; gap: 6px; }
+.pp-trail li { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; position: relative; }
+.pp-trail li::before { content: ''; position: absolute; left: -15px; top: 5px; width: 8px; height: 8px; border-radius: 50%; background: #9aa8bc; }
+.pp-trail li.src-confirmed::before { background: var(--good); }
+.pp-trail li.src-buyer::before { background: #003087; }
+.pp-trail li.src-live-check::before { background: var(--amber); }
+.pp-trail .time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pp-status { font-size: 10px; font-weight: 700; letter-spacing: .3px; padding: 1px 6px; border-radius: 4px; background: #eef1f6; color: #3c4858; }
+.pp-status.ok { background: #d8f3e4; color: var(--good); }
+.pp-status.hold { background: #fff1c2; color: #6a4b00; }
+.pp-status.wait { background: #e5e9ff; color: #2e3f9e; }
+.pp-status.void { background: #fde2df; color: var(--bad); }
+.pp-status.warn { background: #fff4d6; color: #8a5a00; }
+.pp-id { font-size: 11px; font-family: ui-monospace, monospace; color: var(--navy); word-break: break-all; }
+.pp-api { width: 100%; color: var(--muted); font-family: ui-monospace, monospace; font-size: 10px; }
+.settle-job { display: flex; flex-direction: column; gap: 4px; padding-bottom: 6px; border-bottom: 1px solid #f0f2f6; }
+.settle-actions { display: flex; gap: 6px; }
+.bad-text { color: var(--bad); }
+.settle-job .offer-row { flex-wrap: wrap; }
+.settle-job .offer-row b { flex: 1 1 100%; }
+.settle-job .settle-actions { margin-left: auto; }
+p.small { font-size: 12px; }

@@ -65,6 +65,26 @@ export interface Job {
   rush?: boolean;
   /** Compensation agreed for a bump, settled at ship (capture less) or immediately (payout). */
   compensationChf?: number;
+  /** Every PayPal object this job touched, oldest first (order → authorization → capture / void / refund, payouts). */
+  paypal?: PayPalStep[];
+  /** Rush job only: the capture id once shipped (refund path). */
+  captureId?: string;
+  /** Rush job only: set when the rush was cancelled (void before shipment, refund after). */
+  cancelledVia?: 'void' | 'refund';
+}
+
+/** One entry in a job's PayPal timeline. ids link to the sandbox (merchant view) where PayPal has a page for them. */
+export interface PayPalStep {
+  at: string;
+  label: string;
+  /** PayPal's own status string, e.g. PAYER_ACTION_REQUIRED, APPROVED, CREATED, CAPTURED, VOIDED, COMPLETED, SUCCESS. */
+  status: string;
+  id?: string;
+  idKind?: 'order' | 'authorization' | 'capture' | 'refund' | 'payout-batch' | 'payout-item';
+  api?: string;
+  amountChf?: number;
+  /** confirmed = read back from PayPal (webhook, reconcile poll or a live GET), not just our own call's response. */
+  source: 'call' | 'confirmed' | 'live-check' | 'buyer';
 }
 
 export interface ScheduledOp {
@@ -221,7 +241,7 @@ export interface DemoState {
   schedule: Schedule;
   rush?: RushRequest;
   plan?: Plan;
-  rushOrder?: { orderId: string; status: 'created' | 'approved' | 'authorized'; authorizationId?: string; amountChf: number; approveUrl?: string; cancelledAt?: string };
+  rushOrder?: { orderId: string; status: 'created' | 'approved' | 'authorized'; authorizationId?: string; amountChf: number; approveUrl?: string; cancelledAt?: string; expiresAt?: string; paypal: PayPalStep[] };
   /** Set when the intake could not read a job from the text: Takt asks the owner instead of inventing one. */
   intakeQuestion?: { missing: string[]; message: string };
   /** Offers that are closed and no longer part of the plan (declined), so their links still show the answer. */

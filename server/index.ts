@@ -27,6 +27,7 @@ const { server } = createServer({
   currency: env.PAYPAL_CURRENCY ?? 'CHF',
   publicBaseUrl: env.PUBLIC_BASE_URL || undefined,
   payoutReceiver: env.PAYPAL_SANDBOX_PAYOUT_RECEIVER || undefined,
+  paypalLocale: env.PAYPAL_LOCALE || 'en-CH',
   sessionTtlMs: Number(env.DEMO_SESSION_TTL_MIN ?? 120) * 60_000,
   maxSessions: Number(env.DEMO_MAX_SESSIONS ?? 300),
 });

@@ -3,6 +3,7 @@ import type { DemoState } from '../../../shared/types';
 import { chf, dayLong, dayShort, post } from '../api';
 import { OfferCard } from './Offer';
 import { RUSH_SAMPLES } from '../samples';
+import { PayPalTrail, RushCheckout } from './PayPal';
 
 function AgentTag({ by, state }: { by: 'llm' | 'deterministic'; state: DemoState }) {
   const a = state.agent;
@@ -189,53 +190,59 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
       {(stage === 'awaiting-payment' || stage === 'committed') && plan && (
         <section className="card">
           <h2>{stage === 'committed' ? 'Schedule committed' : 'Rush customer approves'}</h2>
-          <div className="kv"><span>{rush?.customer.name}</span><b>{chf(plan.rushPriceChf)}</b></div>
-          <p className="muted">Authorization only — charged when the brackets ship.</p>
-          {stage === 'awaiting-payment' && state.paypalNotice && (
-            <p className={`callout ${state.paypalNotice.kind === 'error' ? 'bad' : 'warn'}`} role="alert" id="paypal-notice">{state.paypalNotice.text}</p>
+          {stage === 'awaiting-payment' && (
+            <>
+              <p className="muted">{rush?.customer.name} gets a PayPal checkout for {chf(plan.rushPriceChf)} (intent AUTHORIZE: a hold, charged at shipment). The schedule changes only when PayPal confirms the authorization.</p>
+              <div className="phone-wrap">
+                <a className="open-phone" href="#/pay" target="_blank" rel="noreferrer">Open {rush?.customer.name}'s checkout on a phone ↗</a>
+                <RushCheckout state={state} onState={onState} />
+              </div>
+            </>
           )}
-          {stage === 'awaiting-payment' && state.modes.paypal === 'mock' && (
-            <div className="pay-row">
-              <button className="btn paypal" disabled={!!busy} onClick={() => run('approve', '/api/rush/mock-approve')}>
-                Pay with PayPal <small>(mock)</small>
-              </button>
-              {state.rushOrder?.status === 'created' && (
-                <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('cancel', '/api/rush/mock-cancel')} title="Simulates the buyer pressing Cancel on the PayPal page">Buyer cancels (mock)</button>
-              )}
-            </div>
+          {state.rushOrder && (
+            <details className="pp-box" open={stage === 'awaiting-payment'}>
+              <summary>PayPal timeline · rush order <code>{state.rushOrder.orderId}</code></summary>
+              <PayPalTrail steps={state.rushOrder.paypal} mode={state.modes.paypal} />
+            </details>
           )}
-          {stage === 'awaiting-payment' && state.modes.paypal === 'sandbox' && (
-            // Redirect approval on the real PayPal sandbox; the server reconciles by polling the order.
-            // (JS SDK v6 popup button replaces this link in phase 2.)
-            state.rushOrder?.approveUrl ? (
-              <a id="paypal-approve" className="btn paypal" href={state.rushOrder.approveUrl} target="_blank" rel="noreferrer">
-                Pay with PayPal <small>(sandbox)</small>
-              </a>
-            ) : <p className="muted">Creating PayPal order…</p>
-          )}
-          {stage === 'awaiting-payment' && state.rushOrder?.status !== 'created' && <p className="muted">Waiting for PayPal to confirm…</p>}
-          {stage === 'awaiting-payment' && state.modes.paypal === 'sandbox' && state.rushOrder?.status === 'created' && <p className="muted">Waiting for the buyer to approve in PayPal…</p>}
           {stage === 'committed' && (
             <>
               <p className="callout good">Confirmed by PayPal. Nobody let down: {plan.offers.length} customer(s) agreed and are compensated.</p>
               <h3>Settle</h3>
+              <p className="muted small">Each job shows every PayPal object it touched. "Check in PayPal" reads the current status straight from the API.</p>
               <div className="settle">
-                {state.jobs.filter((j) => (j.rush || j.compensationChf) && j.status !== 'cancelled').map((j) => (
-                  <div key={j.id} className="offer-row">
-                    <b>{j.id} · {state.customers.find((c) => c.id === j.customerId)?.name ?? (j.rush ? rush?.customer.name : '')}</b>
-                    <span>{j.status === 'shipped'
-                      ? <span className="good">✓ {j.payment.kind === 'authorization'
-                          ? `captured ${chf(j.payment.authorizedChf - (j.compensationChf ?? 0))} of ${chf(j.payment.authorizedChf)}${j.compensationChf ? `: ${chf(j.compensationChf)} less, no refund, no second payment` : ''}`
-                          : 'shipped'}</span>
-                      : j.payment.kind === 'authorization'
-                        ? <>capture {chf(j.payment.authorizedChf - (j.compensationChf ?? 0))}{j.compensationChf ? <small className="muted"> of {chf(j.payment.authorizedChf)}</small> : null}</>
-                        : 'prepaid · compensation paid out'}</span>
-                    {j.payment.kind === 'authorization' && j.status === 'booked' && (
-                      <button className="btn small" disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)}>Ship</button>
-                    )}
-                  </div>
-                ))}
+                {state.jobs.filter((j) => (j.rush || j.compensationChf) && (j.status !== 'cancelled' || j.rush)).map((j) => {
+                  const auth = j.payment.kind === 'authorization' ? j.payment : undefined;
+                  const comp = j.compensationChf ?? 0;
+                  return (
+                    <div key={j.id} className="settle-job" data-job={j.id}>
+                      <div className="offer-row">
+                        <b>{j.id} · {state.customers.find((c) => c.id === j.customerId)?.name ?? (j.rush ? rush?.customer.name : '')}{j.rush ? ' (rush)' : ''}</b>
+                        <span>{j.status === 'cancelled'
+                          ? <span className="bad-text">✕ cancelled: {j.cancelledVia === 'refund' ? `${chf(auth?.authorizedChf ?? 0)} refunded` : 'hold voided, nothing charged'}</span>
+                          : j.status === 'shipped'
+                            ? <span className="good">✓ {auth ? `captured ${chf(auth.authorizedChf - comp)} of ${chf(auth.authorizedChf)}${comp ? `: ${chf(comp)} less, no refund, no second payment` : ''}` : 'shipped'}</span>
+                            : auth
+                              ? <>capture {chf(auth.authorizedChf - comp)}{comp ? <small className="muted"> of {chf(auth.authorizedChf)}</small> : null}</>
+                              : 'prepaid · compensation paid out'}</span>
+                        <span className="settle-actions">
+                          {auth && j.status === 'booked' && <button className="btn small" disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)}>Ship</button>}
+                          {j.rush && j.status === 'booked' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('cancel' + j.id, `/api/jobs/${j.id}/cancel`)} title="POST /v2/payments/authorizations/{id}/void">Cancel rush (void)</button>}
+                          {j.rush && j.status === 'shipped' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('refund' + j.id, `/api/jobs/${j.id}/refund`)} title="POST /v2/payments/captures/{id}/refund">Parts returned: refund</button>}
+                        </span>
+                      </div>
+                      <details className="pp-box">
+                        <summary>PayPal timeline ({j.paypal?.length ?? 0})</summary>
+                        <PayPalTrail steps={j.paypal ?? []} mode={state.modes.paypal} />
+                        <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('check' + j.id, `/api/jobs/${j.id}/paypal-check`)}>{busy === 'check' + j.id ? 'Asking PayPal…' : 'Check in PayPal'}</button>
+                      </details>
+                    </div>
+                  );
+                })}
               </div>
+              {state.jobs.some((j) => j.rush && j.status === 'cancelled') && (
+                <p className="callout warn small">The rush was cancelled: its premium is gone, but the customers who moved keep their compensation and new dates. They waited in good faith.</p>
+              )}
             </>
           )}
         </section>

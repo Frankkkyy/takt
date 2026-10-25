@@ -4,6 +4,7 @@ import { chf, dayLong, getState, post } from './api';
 import { Board } from './components/Board';
 import { Flow } from './components/Flow';
 import { OfferPage } from './components/Offer';
+import { RushPayPage } from './components/PayPal';
 import { RUSH_SAMPLES } from './samples';
 
 function useHash() {
@@ -114,6 +115,7 @@ export function App() {
 
   const offerMatch = hash.match(/^#\/offer\/(.+)$/);
   if (offerMatch) return <OfferPage id={offerMatch[1]} state={state} onState={setState} />;
+  if (hash === '#/pay') return <RushPayPage state={state} onState={setState} />;
 
   const showProposal = ['planned', 'offers-sent', 'awaiting-approval', 'awaiting-payment'].includes(state.stage);
   const coldOpen = state.stage === 'idle' && !state.rush && !state.intakeQuestion;

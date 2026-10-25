@@ -100,6 +100,7 @@ export class MockPayPal implements PayPalGateway {
   }
   async voidAuthorization(authorizationId: string) {
     const a = this.auths.get(authorizationId) ?? { id: authorizationId, orderId: '', status: 'CREATED', amount: { currency: 'CHF', value: 0 }, captured: 0 };
+    if (a.status === 'CAPTURED' || a.status === 'VOIDED') throw new Error('AUTHORIZATION_ALREADY_CAPTURED');
     a.status = 'VOIDED';
     this.auths.set(authorizationId, a);
     this.emit('PAYMENT.AUTHORIZATION.VOIDED', 'authorization', 'A payment authorization was voided', { id: authorizationId, status: 'VOIDED' });
@@ -112,6 +113,7 @@ export class MockPayPal implements PayPalGateway {
   async refundCapture(captureId: string, amount: Money | undefined, noteToPayer: string): Promise<RefundResult> {
     const c = this.captures.get(captureId);
     const amt = amount ?? c?.amount ?? { currency: 'CHF', value: 0 };
+    if (c) c.refunded += amt.value;
     const refundId = this.id('REF-');
     this.emit('PAYMENT.CAPTURE.REFUNDED', 'refund', `A ${amt.currency} ${amt.value.toFixed(2)} capture payment was refunded`, { id: refundId, status: 'COMPLETED', amount: amt, note_to_payer: noteToPayer });
     return { refundId, status: 'COMPLETED', amount: amt };
@@ -133,6 +135,11 @@ export class MockPayPal implements PayPalGateway {
     const p = this.payouts.get(payoutBatchId);
     if (!p) throw new Error('RESOURCE_NOT_FOUND');
     return { ...p };
+  }
+  async getCapture(captureId: string): Promise<CaptureResult> {
+    const c = this.captures.get(captureId);
+    if (!c) throw new Error('RESOURCE_NOT_FOUND');
+    return { captureId, status: c.refunded >= c.amount.value ? 'REFUNDED' : c.refunded > 0 ? 'PARTIALLY_REFUNDED' : 'COMPLETED', amount: c.amount };
   }
   async verifyWebhook() { return true; }
 }

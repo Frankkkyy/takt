@@ -24,6 +24,8 @@ export interface ServerDeps {
   payoutReceiver?: string;
   sessionTtlMs?: number;
   maxSessions?: number;
+  /** experience_context.locale and JS SDK v6 locale (default en-CH). */
+  paypalLocale?: string;
   /** Serve web/dist when it exists (production). */
   serveStatic?: boolean;
 }
@@ -34,6 +36,7 @@ export function createServer(deps: ServerDeps) {
       returnUrl: `${baseFor.get(id)}/api/paypal/return`,
       cancelUrl: `${baseFor.get(id)}/api/paypal/cancel`,
       payoutReceiver: deps.payoutReceiver,
+      locale: deps.paypalLocale,
       liveLeft: deps.limiter ? () => deps.limiter!.remaining(id) : undefined,
     }),
     { ttlMs: deps.sessionTtlMs ?? 2 * 3_600_000, max: deps.maxSessions ?? 300, onDrop: (id) => { baseFor.delete(id); deps.limiter?.forget(id); } },
@@ -88,7 +91,17 @@ export function createServer(deps: ServerDeps) {
 
   server.get('/healthz', (_req, res) => res.json({ ok: true, sessions: sessions.size }));
   server.get('/api/state', (req, res) => res.json(sessionOf(req, res).app.snapshot()));
-  server.get('/api/config', (_req, res) => res.json({ paypalMode: deps.paypalMode, paypalClientId: deps.paypalClientId ?? null, currency: deps.currency }));
+  server.get('/api/config', (_req, res) => res.json({ paypalMode: deps.paypalMode, paypalClientId: deps.paypalClientId ?? null, currency: deps.currency, paypalLocale: deps.paypalLocale ?? 'en-CH' }));
+  // JS SDK v6: browser-safe client token (15 min, generated server-side; the secret never reaches the browser).
+  server.get('/api/paypal/client-token', async (_req, res) => {
+    const gw = deps.webhookGateway;
+    if (deps.paypalMode !== 'sandbox' || !gw?.clientToken) return res.status(404).json({ error: 'client tokens exist only in sandbox mode' });
+    try {
+      res.set('Cache-Control', 'no-store').json(await gw.clientToken());
+    } catch (e) {
+      res.status(502).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+  });
   server.post('/api/demo/reset', wrap((app) => app.reset()));
   server.post('/api/rush/intake', wrap((app, req) => app.intake(String(req.body?.text ?? ''))));
   server.post('/api/rush/plan', wrap((app) => app.plan()));
@@ -99,7 +112,9 @@ export function createServer(deps: ServerDeps) {
   server.post('/api/rush/mock-approve', wrap((app) => app.mockApprove()));
   server.post('/api/rush/mock-cancel', wrap((app) => app.mockCancel()));
   // Sandbox: JS SDK onApprove -> server authorizes the order (commit still waits for the webhook / reconcile).
-  server.post('/api/rush/authorize', wrap((app, req) => app.authorizeRush(String(req.body?.orderId ?? ''))));
+  server.post('/api/rush/authorize', wrap((app, req) => app.authorizeRush(String(req.body?.orderId ?? ''), 'sdk')));
+  // JS SDK onCancel: the buyer closed the PayPal window. Same handling as the redirect cancel_url.
+  server.post('/api/rush/buyer-cancelled', wrap((app, req) => app.buyerCancelled(String(req.body?.orderId ?? ''), 'sdk')));
 
   // Sandbox redirect flow: PayPal sends the buyer back with ?token={orderId} (approved) or to cancel_url (cancelled).
   const owner = (req: Request) => {
@@ -114,7 +129,7 @@ export function createServer(deps: ServerDeps) {
       return res.redirect('/?paypal=unknown');
     }
     try {
-      await s.app.authorizeRush(token);
+      await s.app.authorizeRush(token, 'redirect');
       res.redirect('/?paypal=approved');
     } catch (e) {
       // The app logged it and shows a notice in the console; keep a server trace too.
@@ -129,6 +144,8 @@ export function createServer(deps: ServerDeps) {
   });
   server.post('/api/jobs/:id/ship', wrap((app, req) => app.ship(String(req.params.id))));
   server.post('/api/jobs/:id/cancel', wrap((app, req) => app.cancel(String(req.params.id))));
+  server.post('/api/jobs/:id/refund', wrap((app, req) => app.refund(String(req.params.id))));
+  server.post('/api/jobs/:id/paypal-check', wrap((app, req) => app.checkPayPal(String(req.params.id))));
 
   server.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     res.status(400).json({ ok: false, error: err instanceof Error ? err.message : String(err) });

@@ -228,3 +228,63 @@ test('B13: a declined offer link still resolves (closed offers are kept)', async
   await app.respond(first.id, false);
   assert.equal(app.state.pastOffers?.find((o) => o.id === first.id)?.status, 'declined');
 });
+
+async function committedApp(gw = new MockPayPal(5)) {
+  const app = new TaktApp(gw, new DeterministicAgent());
+  await app.intake(REQUEST);
+  const plan = await app.plan();
+  app.sendOffers();
+  for (const o of plan.offers) await app.respond(o.id, true);
+  await app.approve();
+  return { app, gw, plan };
+}
+
+test('JS SDK onApprove and the PayPal webhook both arrive: one authorization, timeline shows every PayPal step', async () => {
+  const { app, gw } = await committedApp();
+  const orderId = app.state.rushOrder!.orderId;
+  await gw.simulateBuyerApproval(orderId); // the buyer approves in the SDK popup; the webhook follows 5 ms later
+  await app.authorizeRush(orderId, 'sdk'); // onApprove -> POST /api/rush/authorize
+  await wait(40);
+  assert.equal(app.state.stage, 'committed');
+  assert.equal(app.state.ledger.filter((l) => l.title === 'Rush payment authorized').length, 1);
+  const rush = app.state.jobs.find((j) => j.rush)!;
+  const labels = rush.paypal!.map((s) => `${s.status} ${s.label}`).join('\n');
+  assert.match(labels, /CREATED Rush order created/);
+  assert.match(labels, /APPROVED Buyer approved in PayPal \(JS SDK v6 onApprove\)/);
+  assert.match(labels, /CREATED Payment authorized/);
+  assert.ok(rush.paypal!.some((s) => s.source === 'confirmed' && s.idKind === 'authorization'), 'authorization confirmed by PayPal event');
+  assert.ok(app.state.rushOrder!.expiresAt, 'authorization expiry is shown');
+});
+
+test('rush cancelled before shipment: authorization voided, premium lost, bumped customers keep their compensation', async () => {
+  const { app, gw, plan } = await committedApp();
+  await app.mockApprove();
+  await wait(40);
+  const before = { ...app.state.yield };
+  const rush = app.state.jobs.find((j) => j.rush)!;
+  await app.cancel(rush.id);
+  assert.equal(rush.status, 'cancelled');
+  assert.equal(rush.cancelledVia, 'void');
+  assert.equal((await gw.getAuthorization(rush.payment.kind === 'authorization' ? rush.payment.authorizationId : '')).status, 'VOIDED');
+  assert.equal(app.state.yield.premiumsChf, before.premiumsChf - plan.rushPremiumChf);
+  assert.equal(app.state.yield.compensationsChf, before.compensationsChf);
+  assert.ok(rush.paypal!.some((s) => s.status === 'VOIDED' && s.api?.includes('/void')));
+  await assert.rejects(app.cancel(rush.id), /not cancellable/);
+});
+
+test('rush cancelled after shipment: capture refunded in full; "Check in PayPal" reads the live status', async () => {
+  const { app } = await committedApp();
+  await app.mockApprove();
+  await wait(40);
+  const rush = app.state.jobs.find((j) => j.rush)!;
+  await assert.rejects(app.refund(rush.id), /ship the job first/);
+  await app.ship(rush.id);
+  await app.refund(rush.id);
+  assert.equal(rush.cancelledVia, 'refund');
+  assert.ok(rush.paypal!.some((s) => s.idKind === 'refund' && s.status === 'COMPLETED'));
+  const live = await app.checkPayPal(rush.id);
+  assert.deepEqual(live, ['authorization CAPTURED', 'capture REFUNDED']);
+  const payoutJob = app.state.jobs.find((j) => j.payment.kind === 'prepaid' && j.compensationChf)!;
+  await wait(40);
+  assert.ok(payoutJob.paypal!.some((s) => s.idKind === 'payout-batch' && s.source === 'confirmed' && s.status === 'SUCCESS'), 'payout confirmation on the job timeline');
+});

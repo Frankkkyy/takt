@@ -10,7 +10,7 @@ flowchart LR
   subgraph Browser
     OW[Owner console<br/>board + flow + PayPal log]
     OF[Customer offer page<br/>phone view, DE/FR/EN]
-    SDK[PayPal JS SDK v6<br/>rush customer approval]
+    SDK[Rush checkout #/pay<br/>PayPal JS SDK v6 button<br/>redirect link as fallback]
   end
 
   subgraph Server["Node / Express (one process)"]
@@ -35,7 +35,7 @@ flowchart LR
 
   OW --> API
   OF --> API
-  SDK -- onApprove(orderId) --> API
+  SDK -- client token / onApprove(orderId) / onCancel --> API
   API --> APP
   APP --> PL --> SC
   PL --> PR
@@ -127,13 +127,22 @@ sequenceDiagram
   Note over T: Owner approves the money moves
   T->>P: POST /v1/payments/payouts (M, CHF 45)
   T->>P: POST /v2/checkout/orders intent=AUTHORIZE (rush price)
-  R->>P: Approve (JS SDK v6)
+  T-->>R: Browser-safe client token (POST /v1/oauth2/token response_type=client_token)
+  R->>P: PayPal button (JS SDK v6) → popup, buyer approves
+  R->>T: onApprove(orderId) → POST /api/rush/authorize
   T->>P: POST /v2/checkout/orders/{id}/authorize
   P-->>T: webhook PAYMENT.AUTHORIZATION.CREATED
   T->>T: Commit new schedule (only now)
   Note over T,P: At shipment of B's job
   T->>P: POST /v2/payments/authorizations/{B}/capture amount = authorized − 50, final_capture=true
+  Note over T,P: Rush cancelled
+  T->>P: before shipment: POST /v2/payments/authorizations/{R}/void
+  T->>P: after shipment: POST /v2/payments/captures/{id}/refund
 ```
+
+**Rush checkout (JS SDK v6, verified in the sandbox on 26 Oct 2026).** The order is created on the server when the owner approves (intent `AUTHORIZE`, amount from the plan, `experience_context.locale = en-CH`). The checkout page loads `https://www.sandbox.paypal.com/web-sdk/v6/core`, gets a browser-safe client token from `GET /api/paypal/client-token` (falls back to the client id), calls `createInstance({ clientToken, components: ['paypal-payments'], pageType: 'checkout', locale: 'en-CH' })`, checks `findEligibleMethods({ currencyCode: 'CHF' })`, and starts a `createPayPalOneTimePaymentSession` with `presentationMode: 'auto'` and a promise that resolves to the existing `{ orderId }`. `onApprove` posts the order id to `/api/rush/authorize`; `onCancel` posts to `/api/rush/buyer-cancelled`. The redirect link (`payer-action` URL, `return_url` / `cancel_url`) stays as the fallback, and the reconcile poll catches an approval that neither path reports. All three paths are idempotent: the first one authorizes.
+
+**PayPal timeline per job.** Every PayPal object a job touches is recorded on the job (`job.paypal`): booking authorization, agreed capture-less, payout batch, rush order → approval → authorization, capture, void, refund. Entries are marked as our call, the buyer's action, PayPal's confirmation (webhook or reconcile poll) or a live check ("Check in PayPal" runs `GET` on the authorization, capture and payout). Authorization, capture and refund ids link to the sandbox merchant view (needs the sandbox business login).
 
 ## Modules
 
@@ -154,11 +163,11 @@ sequenceDiagram
 | `scripts/agent-eval.ts` | `npm run agent:eval`: 13 cases (DE/FR/EN intake, plans, accept/decline/counter/over-cap/injection/question) with pass/fail and token cost → `docs/AGENT_EVAL.md` |
 | `server/paypal/gateway.ts` | `PayPalGateway` interface: every money move |
 | `server/paypal/mock.ts` | Offline implementation, used until credentials exist and for tests |
-| `server/paypal/rest.ts` | Sandbox REST client: OAuth, Orders, Payments, Payouts, webhook verification. Reconciles by polling and emits `RECON-…` webhook-shaped events. Verified against the sandbox on 25 Oct 2026 |
+| `server/paypal/rest.ts` | Sandbox REST client: OAuth, JS SDK client token, Orders, Payments, Payouts, webhook verification. Reconciles by polling and emits `RECON-…` webhook-shaped events. Verified against the sandbox on 25 Oct 2026 |
 | `scripts/sandbox-smoke.ts` | `npm run smoke:sandbox`: the whole money story against the real sandbox (rush authorize, capture less, refund, void, reauthorize guard, payout) |
-| `scripts/paypal-approve.ts` | Headless sandbox buyer approval (sandbox account login, or guest test card) for the smoke test and screenshots |
-| `server/app.ts` | Flow state machine: intake → plan → offers → free-text replies → **owner approval** → payouts + rush authorization → commit on webhook → ship (capture less) / cancel (void) |
-| `web/src/*` | React UI: owner console (board, flow panel, PayPal log) and the `#/offer/:id` customer page |
+| `scripts/paypal-approve.ts` | Headless sandbox buyer approval: redirect page (account login or guest test card) and the JS SDK v6 popup (account login) |
+| `server/app.ts` | Flow state machine: intake → plan → offers → free-text replies → **owner approval** → payouts + rush authorization → commit on webhook → ship (capture less) / cancel rush (void before shipment, refund after) / live PayPal check |
+| `web/src/*` | React UI: owner console (board, flow panel, PayPal log, per-job PayPal timeline), the `#/offer/:id` customer page and the `#/pay` rush checkout (`components/PayPal.tsx`: JS SDK v6) |
 
 ## Principles
 
@@ -176,7 +185,7 @@ sequenceDiagram
 ## Next (phase 2)
 
 1. Bryntum Scheduler Pro replaces `Board.tsx` (trial starts ≥ 31 Oct). Machines become resources and ops become events; ghost events show the proposal, and the accepted plan animates in.
-2. JS SDK v6 button for the rush customer, replacing the redirect link. The RestPayPal day-1 checks are done: see SPIKE.md.
+2. ~~JS SDK v6 button for the rush customer~~: done (redirect kept as fallback).
 3. ~~LLM negotiator plus free-text counter-offers~~: done (phase 2, see "The agent").
 4. Expose the money moves as typed agent tools next to `@paypal/agent-toolkit` tools, for a buyer-agent MCP endpoint (stretch).
-5. Hosting on Render, plus README and THIRD_PARTY.md.
+5. Hosting on Render (plan in [DEPLOY.md](DEPLOY.md), `render.yaml`), plus THIRD_PARTY.md.

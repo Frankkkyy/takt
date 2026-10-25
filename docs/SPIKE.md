@@ -209,7 +209,7 @@ Run against `api-m.sandbox.paypal.com` with the app's own sandbox credentials (k
 | 1 | CHF AUTHORIZE order, then capture | **Works.** See "Orders v2" below. |
 | 2 | Capture less with `final_capture:true` releases the rest | **Works.** Authorized CHF 2150, captured 2100: capture `COMPLETED`, authorization `CAPTURED`. A further capture fails with `422 AUTHORIZATION_ALREADY_CAPTURED`, so the CHF 50 can't be taken later. |
 | 3 | CHF Payout from the sandbox business balance | **Works without a CHF balance.** PayPal converted EUR 51.38 to CHF 45.90 (CHF 45 plus a CHF 0.90 fee). |
-| 4 | JS SDK v6 `onApprove` with an AUTHORIZE order | **Not tested yet.** The redirect approval (`payer-action` link) works and is what the app uses now. |
+| 4 | JS SDK v6 `onApprove` with an AUTHORIZE order | **Works (26 Oct).** Server-created AUTHORIZE order, `session.start({ presentationMode: 'auto' }, Promise.resolve({ orderId }))`, popup approval, `onApprove` → server `/authorize`. See "JS SDK v6" below. |
 | 5 | Webhook verification field name | **Not tested.** Not needed now: the app reconciles by polling. Test once hosted, or through a tunnel. |
 
 ### Sandbox accounts
@@ -256,8 +256,22 @@ Francisco added `PAYPAL_SANDBOX_PAYOUT_RECEIVER` and `PAYPAL_SANDBOX_BUYER_EMAIL
 
 ### Blockers and to-dos
 1. ~~Sandbox personal account for payouts and wallet approval~~: done, see above.
-2. JS SDK v6 popup button (`onApprove` → `/api/rush/authorize`) to replace the redirect link.
+2. ~~JS SDK v6 popup button~~: done, see below.
 3. Webhook signature verification: test once hosted.
+
+## JS SDK v6 and PayPal page language (26 Oct 2026)
+
+Sources: developer.paypal.com "JavaScript SDK v6 / PayPal checkout" and the `paypal-examples/v6-web-sdk-sample-integration` repo (via context7), read 26 Oct 2026.
+
+- **Client token:** `POST /v1/oauth2/token` with `grant_type=client_credentials&response_type=client_token&intent=sdk_init` (Basic auth with the app credentials) returns `200`, `token_type: Bearer`, `expires_in: 900`. The server caches it and serves it at `GET /api/paypal/client-token`. The docs also allow `clientId` for the PayPal button; the app falls back to it.
+- **Script:** `https://www.sandbox.paypal.com/web-sdk/v6/core`. `createInstance({ clientToken, components: ['paypal-payments'], pageType: 'checkout', locale: 'en-CH' })` accepted `en-CH`.
+- **Eligibility:** `findEligibleMethods({ currencyCode: 'CHF' }).isEligible('paypal')` is true.
+- **Session:** `createPayPalOneTimePaymentSession({ onApprove, onCancel, onError })`. `start({ presentationMode: 'auto' }, promise)` must get the promise un-awaited; it resolves to `{ orderId }`. Our order already exists, so the promise is `Promise.resolve({ orderId })`. In headless Chromium `auto` opens a **popup** (`www.sandbox.paypal.com`).
+- **AUTHORIZE intent works with the SDK:** `onApprove({ orderId })` → `POST /v2/checkout/orders/{id}/authorize` → authorization `CREATED`. Having `return_url` / `cancel_url` in `experience_context` (needed for the redirect fallback) did not interfere: the popup closed and `onApprove` fired.
+- **Closing the popup** calls `onCancel`; the order stays `PAYER_ACTION_REQUIRED` and the same button works again.
+- **Headless runs (Playwright, popup approval with the sandbox buyer login):** 8 runs. 6 passed end to end through `onApprove`. In 1 run (the first) the popup did not close within 90 s after "Complete purchase"; the helper now records the popup's navigations, not reproduced since. In 1 run the server's reconcile poll authorized the order a moment before `onApprove` arrived (correct result, wrong label); a reconcile poll now waits 4 s so the buyer's callback goes first. Redirect fallback: 2 of 2.
+
+**Language.** `experience_context.locale` accepts `en-CH`, `en-GB` and `en-US` for CHF AUTHORIZE orders (201/200). With `en-CH`, the PayPal login page in the popup and on the redirect is English (`<html lang="en-CH">`, language switcher Deutsch | Français | **English**). **After login, PayPal switches to the buyer account's own language and country**: our workspace sandbox buyer is a Spanish account (es-ES, CaixaBank + Visa), so the review page is Spanish ("Completar compra") and shows an EUR conversion. This cannot be forced from the API or the SDK. Fix on the account side: a sandbox personal account created with country **Switzerland** and language English (developer.paypal.com > Testing Tools > Sandbox Accounts > Create account), with a card as funding source. `testBuyerCountry` in the SDK only affects eligibility, not the page language.
 
 ## Runtime LLM verification (25 Oct 2026)
 

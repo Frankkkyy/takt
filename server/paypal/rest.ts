@@ -81,6 +81,35 @@ export class RestPayPal implements PayPalGateway {
     return this.token.value;
   }
 
+  private sdkToken?: { value: string; exp: number };
+
+  /**
+   * Browser-safe client token for the JS SDK v6 (createInstance({ clientToken })). Same OAuth endpoint with
+   * response_type=client_token; verified in sandbox 2026-10-26: 200, token_type Bearer, expires_in 900.
+   * Cached and shared by all sessions until 2 minutes before it expires.
+   */
+  async clientToken() {
+    if (!this.sdkToken || this.sdkToken.exp < Date.now() + 120_000) {
+      const res = await fetch(`${this.base}/v1/oauth2/token`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Basic ' + Buffer.from(`${this.clientId}:${this.secret}`).toString('base64'),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'grant_type=client_credentials&response_type=client_token&intent=sdk_init',
+      });
+      const body = (await res.json()) as Json;
+      if (!res.ok || !body.access_token) throw new PayPalApiError(res.status, body.error ?? 'CLIENT_TOKEN_FAILED', undefined, { error: body.error });
+      this.sdkToken = { value: body.access_token, exp: Date.now() + Number(body.expires_in) * 1000 };
+    }
+    return { clientToken: this.sdkToken.value, expiresIn: Math.round((this.sdkToken.exp - Date.now()) / 1000) };
+  }
+
+  async getCapture(captureId: string): Promise<CaptureResult> {
+    const r = await this.call('GET', `/v2/payments/captures/${captureId}`);
+    return { captureId: r.id, status: r.status, amount: money(r.amount) };
+  }
+
   private async call(method: string, path: string, body?: Json, idempotencyKey?: string): Promise<Json> {
     const res = await fetch(`${this.base}${path}`, {
       method,
@@ -117,6 +146,7 @@ export class RestPayPal implements PayPalGateway {
             brand_name: 'Takt demo shop',
             user_action: 'CONTINUE',
             shipping_preference: 'NO_SHIPPING',
+            ...(i.locale ? { locale: i.locale } : {}),
             ...(i.returnUrl ? { return_url: i.returnUrl, cancel_url: i.cancelUrl ?? i.returnUrl } : {}),
           },
         },

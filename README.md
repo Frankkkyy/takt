@@ -4,9 +4,9 @@ When a job shop's schedule is full and a rush order arrives, Takt makes room. It
 
 > Status: phase 2.
 > - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It scores 17/17 on the eval.
-> - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock.
+> - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock. The rush customer pays with the **PayPal JS SDK v6** button (redirect as fallback), and every job shows its PayPal timeline: order, approval, authorization, capture, void, refund, payout, each with its PayPal id.
 > - **Timeline:** a simple one-week board until Bryntum Scheduler Pro is wired in.
-> - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state.
+> - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state. Render plan and `render.yaml`: [docs/DEPLOY.md](docs/DEPLOY.md) (not deployed yet).
 
 ![Cold open: the laser and press brake are full, a rush email arrives](docs/screenshots/0-cold-open.png)
 
@@ -19,18 +19,19 @@ npm run dev              # API on :8787, web on http://localhost:5173
 npm test                 # unit, guardrail, HTTP/session tests; demo path 10x with rules and 10x with recorded Claude responses
 npm run agent:eval       # 17-case agent eval (replays recordings, free, report untouched; add -- --live to re-run on Claude, ~USD 0.01)
 npm run dev:sandbox      # same app against the real PayPal sandbox
-npm run smoke:sandbox    # the whole money story against the sandbox, 14 checks (headless buyer approval)
+npm run smoke:sandbox    # the whole money story against the sandbox, 16 checks (headless buyer approval)
 npm run build && npm start   # production: one process serves API + built web app on :8787
-npm run screenshot [url]     # Playwright demo-path run with checks + screenshots (DEMO_RUNS=3, DEMO_CANCEL_FIRST=1)
+npm run screenshot [url]     # Playwright demo-path run with checks + screenshots (DEMO_RUNS=3, DEMO_CANCEL_FIRST=1, PAY_VIA=sdk|redirect)
 ```
 
-**Hosting (Render or similar).** `npm ci && npm run build`, start `npm start`, health check `/healthz`. Express trusts one proxy hop (`trust proxy`), so client IPs and `https` are correct behind Render. Set `PUBLIC_BASE_URL` to the public URL (otherwise it is taken from the request host); PayPal returns the buyer to `/api/paypal/return` and a cancelled checkout to `/api/paypal/cancel`. Live-AI limits (only live Claude calls count, recorded replays are free and unlimited): `AGENT_MAX_LIVE_PER_SESSION_HOUR` (12), `AGENT_MAX_LIVE_PER_IP_HOUR` (40), `AGENT_MAX_LIVE_PER_DAY` (300), plus the per-process `AGENT_MAX_USD` ceiling. When a limit is reached the step runs on the rules and the UI says so. Also set a spend limit in the Anthropic Console.
+**Hosting (Render or similar, see [docs/DEPLOY.md](docs/DEPLOY.md) and `render.yaml`).** `npm ci --include=dev && npm run build`, start `npm start`, health check `/healthz`. Express trusts one proxy hop (`trust proxy`), so client IPs and `https` are correct behind Render. Set `PUBLIC_BASE_URL` to the public URL (otherwise it is taken from the request host); PayPal returns the buyer to `/api/paypal/return` and a cancelled checkout to `/api/paypal/cancel`. Live-AI limits (only live Claude calls count, recorded replays are free and unlimited): `AGENT_MAX_LIVE_PER_SESSION_HOUR` (12), `AGENT_MAX_LIVE_PER_IP_HOUR` (40), `AGENT_MAX_LIVE_PER_DAY` (300), plus the per-process `AGENT_MAX_USD` ceiling. When a limit is reached the step runs on the rules and the UI says so. Also set a spend limit in the Anthropic Console.
 
 Without credentials the header shows **PayPal: MOCK**. The agent badge shows **Claude Haiku 5.5 · live** when `ANTHROPIC_API_KEY` is set, **· recorded** when a scripted demo input is replayed from `server/agent/llm-cache/` (no key needed), or **rules (fallback)**. `AGENT_MODE=deterministic` forces the rules. Once `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set (in `.env`, or in the parent workspace's `.env`), it switches to the real sandbox.
 
 ### Sandbox notes
 
-- **Rush customer:** "Pay with PayPal (sandbox)" opens PayPal's approval page. Log in with a sandbox *personal* account (choose the card, not a bank account, as funding), or use "Pay with credit or debit card" with test card `4005519200000004`, any future expiry, CVV `123`. PayPal sends the buyer back to `/api/paypal/return`, and the server also polls the order, so the flow completes even without the redirect. If the buyer cancels on PayPal, the console and the log say so; the same link keeps working.
+- **Rush customer:** the rush checkout (inline in the console, or `#/pay` on a phone) shows the **PayPal JS SDK v6** button. It loads with a browser-safe client token from `/api/paypal/client-token` and opens PayPal in a popup; `onApprove` sends the order id to the server, which authorizes it. Log in with a sandbox *personal* account (choose the card, not a bank account, as funding). Closing the popup shows "closed the PayPal window" in the console; the button keeps working. **Fallback:** "Or continue on the PayPal page (redirect)" uses the order's `payer-action` link; there you can also pay as a guest with test card `4005519200000004`, any future expiry, CVV `123`. The server also polls the order, so an approval is never lost.
+- **Language:** orders carry `experience_context.locale = en-CH` and the SDK uses `locale: 'en-CH'` (`PAYPAL_LOCALE`), so PayPal's login page is English. After login PayPal switches to the buyer account's own language and country; that can't be forced. Use a sandbox buyer created with country Switzerland and English (see [docs/DEPLOY.md](docs/DEPLOY.md)).
 - **Repeat runs:** every demo run (and every Reset) gets a run id, so PayPal invoice ids never repeat (`DUPLICATE_TRANSACTION`) while a double-clicked Ship stays idempotent (same `PayPal-Request-Id`).
 - **Seeded bookings** have placeholder authorizations. The first time Takt touches one, it creates a real sandbox authorization for the same amount with PayPal's test card (logged as "Sandbox booking authorization").
 - **Payouts** go to `PAYPAL_SANDBOX_PAYOUT_RECEIVER` when it is set. Otherwise they end `UNCLAIMED`, because the seeded emails have no PayPal account.
@@ -69,14 +70,24 @@ Payees always come from booking records. Customer text is wrapped as untrusted d
 
 | Step | API |
 |---|---|
-| Rush customer pays (hold only) | `POST /v2/checkout/orders` (intent `AUTHORIZE`), buyer approval (redirect now, JS SDK v6 next), then `POST /v2/checkout/orders/{id}/authorize` |
+| Rush customer pays (hold only) | `POST /v2/checkout/orders` (intent `AUTHORIZE`, `locale en-CH`), **JS SDK v6** PayPal button with a server-issued client token (`POST /v1/oauth2/token response_type=client_token`), `onApprove` → `POST /v2/checkout/orders/{id}/authorize`. Redirect (`payer-action` link) as fallback |
 | Owner approves the money moves | Nothing below runs before this click; guardrail checks are re-run |
 | Bumped customer who booked with an authorization | At shipment: `POST /v2/payments/authorizations/{id}/capture` for the authorized amount minus the compensation, with `final_capture:true` |
 | Bumped customer who already paid in full | `POST /v1/payments/payouts` |
-| Cancellation | `POST /v2/payments/authorizations/{id}/void` (API route `/api/jobs/:id/cancel`; no button yet) |
-| Late-delivery policy | `POST /v2/payments/captures/{id}/refund` (verified by `npm run smoke:sandbox`; not in the UI yet) |
+| Rush cancelled before shipment | `POST /v2/payments/authorizations/{id}/void`: "Cancel rush (void)" in Settle. The premium is lost, the bumped customers keep their compensation |
+| Rush cancelled after shipment | `POST /v2/payments/captures/{id}/refund` (full): "Parts returned: refund" in Settle. Partial refunds (late-delivery policy) verified by `npm run smoke:sandbox` |
+| Status, per job | PayPal timeline with every id (order, authorization, capture, refund, payout batch), each marked as our call, buyer action, PayPal confirmation or live check. "Check in PayPal" runs `GET /v2/payments/authorizations/{id}`, `GET /v2/payments/captures/{id}`, `GET /v1/payments/payouts/{id}`. Ids link to the sandbox merchant view (business login) |
 | Long jobs | `POST /v2/payments/authorizations/{id}/reauthorize` after the 3-day honor period (verified by the smoke script; not in the UI yet) |
 | Confirmation | Reconcile by polling `GET` order / authorization / payout. Webhooks (`PAYMENT.AUTHORIZATION.CREATED`, `PAYMENT.PAYOUTS-ITEM.SUCCEEDED`, …) go through the same handler once hosted, verified with `/v1/notifications/verify-webhook-signature` |
+
+![Rush checkout with the PayPal JS SDK v6 button (sandbox) and the rush order's PayPal timeline](docs/screenshots/sandbox/4a-sandbox-sdk-button.png)
+
+![PayPal timeline of a cancelled rush: order, buyer cancel, approval (JS SDK onApprove), authorization, void](docs/screenshots/sandbox/6-rush-cancelled-void.png)
+
+### Test accounts (sandbox only)
+
+- **Hosted demo:** not deployed yet. The URL and a dedicated sandbox buyer (country Switzerland, English) will be listed here; see [docs/DEPLOY.md](docs/DEPLOY.md#how-judges-test). Sandbox accounts hold test money only.
+- **Guest card** on the PayPal page (redirect fallback): `4005519200000004`, any future expiry, CVV `123`.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture diagram, the agent sequence and the guardrails. See [docs/SPIKE.md](docs/SPIKE.md) for the API verification log.
 

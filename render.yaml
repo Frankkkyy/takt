@@ -1,0 +1,58 @@
+# Render Blueprint for Takt (one Node web service: API + built React app). Not deployed yet: see docs/DEPLOY.md.
+# Render dashboard > New > Blueprint > pick this repo. Values marked sync:false are asked for once, at creation.
+services:
+  - type: web
+    name: takt
+    runtime: node
+    # free sleeps after 15 min idle (see DEPLOY.md "Keep-alive"); switch to starter on the hackathon credits.
+    plan: free
+    region: frankfurt
+    # devDependencies (vite, typescript) are needed to build; npm start runs the server with tsx.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # PayPal sandbox app (developer.paypal.com > Apps & Credentials > Sandbox). Sandbox only, never live.
+      - key: PAYPAL_MODE
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_CURRENCY
+        value: CHF
+      - key: PAYPAL_LOCALE
+        value: en-CH
+      # Sandbox personal account that receives payouts (otherwise they end UNCLAIMED).
+      - key: PAYPAL_SANDBOX_PAYOUT_RECEIVER
+        sync: false
+      # Optional: webhook id after registering https://<service>.onrender.com/api/webhooks/paypal in the sandbox app.
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      # https://<service>.onrender.com (PayPal return/cancel URLs). Empty works too: taken from the request host.
+      - key: PUBLIC_BASE_URL
+        sync: false
+      # Claude for the negotiation agent (project budget key with a Console spend limit). Empty = recorded + rules.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: claude-haiku-5-5
+      - key: LLM_EFFORT
+        value: low
+      - key: AGENT_MAX_USD
+        value: "0.25"
+      - key: AGENT_MAX_CALLS_PER_MIN
+        value: "20"
+      - key: AGENT_MAX_LIVE_PER_SESSION_HOUR
+        value: "12"
+      - key: AGENT_MAX_LIVE_PER_IP_HOUR
+        value: "40"
+      - key: AGENT_MAX_LIVE_PER_DAY
+        value: "300"
+      - key: DEMO_SESSION_TTL_MIN
+        value: "120"
+      - key: DEMO_MAX_SESSIONS
+        value: "300"

@@ -149,6 +149,26 @@ test('B8: PayPal cancel redirect is routed to the session that owns the order an
   }
 });
 
+test('JS SDK onCancel is shown to the owner; config forces an English PayPal locale; no client token in mock mode', async () => {
+  const s = await start(new DeterministicAgent());
+  try {
+    const a = client(s.base);
+    assert.equal((await (await a.get('/api/config')).json()).paypalLocale, 'en-CH');
+    assert.equal((await a.get('/api/paypal/client-token')).status, 404);
+    await a.post('/api/rush/intake', { text: REQUEST });
+    const plan = (await a.post('/api/rush/plan')).state.plan!;
+    await a.post('/api/offers/send');
+    for (const o of plan.offers) await a.post(`/api/offers/${o.id}/respond`, { accept: true });
+    const orderId = (await a.post('/api/approval/approve')).state.rushOrder!.orderId;
+    const st = (await a.post('/api/rush/buyer-cancelled', { orderId })).state;
+    assert.equal(st.paypalNotice?.kind, 'cancelled');
+    assert.match(st.paypalNotice!.text, /closed the PayPal window/);
+    assert.ok(st.rushOrder!.paypal.some((x) => x.source === 'buyer'));
+  } finally {
+    await s.close();
+  }
+});
+
 test('mock mode exposes no public webhook endpoint (no fake PayPal events)', async () => {
   const s = await start(new DeterministicAgent());
   try {

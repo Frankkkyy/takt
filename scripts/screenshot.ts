@@ -7,20 +7,27 @@
 // Env: SCREENSHOT_DIR (default docs/screenshots) · DEMO_SAMPLE (rush sample chip, default: the cold-open email = DE)
 //      DEMO_RUNS (mock: repeat the path N times with Reset demo in between, default 1)
 //      DEMO_CANCEL_FIRST=1 (the rush buyer cancels once on the PayPal page before approving)
+//      PAY_VIA=sdk|redirect (sandbox, default sdk: JS SDK v6 popup; redirect = the fallback link)
+//      DEMO_CANCEL_RUSH=1 (after shipping J-2044: cancel the rush = void its authorization)
 // Sandbox mode is detected from /api/config; the buyer step then runs on paypal.com (scripts/paypal-approve.ts).
 import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname, quiet: true }); // sandbox buyer login, if set
 import { chromium, type Browser, type Page } from 'playwright';
 import { mkdirSync } from 'node:fs';
-import { approveInSandbox } from './paypal-approve.js';
+import { approveInPopup, approveInSandbox, cancelPopup } from './paypal-approve.js';
 
 const base = process.argv[2] ?? 'http://localhost:5173';
 const out = process.env.SCREENSHOT_DIR ?? 'docs/screenshots';
 const sample = process.env.DEMO_SAMPLE;
 const runs = Number(process.env.DEMO_RUNS ?? 1);
 const cancelFirst = process.env.DEMO_CANCEL_FIRST === '1';
+const payVia = process.env.PAY_VIA ?? 'sdk';
+const cancelRush = process.env.DEMO_CANCEL_RUSH === '1';
 mkdirSync(out, { recursive: true });
+// Pages behind the sandbox buyer's login (funding instruments, account language) go to a gitignored folder.
+const privateOut = process.env.PRIVATE_SCREENSHOT_DIR ?? 'qa/sandbox';
+mkdirSync(privateOut, { recursive: true });
 
 const results: { step: string; ok: boolean; detail?: string }[] = [];
 const check = (step: string, ok: boolean, detail = '') => {
@@ -107,7 +114,33 @@ for (let run = 1; run <= runs; run++) {
   if (run === 1) await shot('3c-owner-approval', true);
   await page.locator('#approve-moves').click();
 
-  if (sandbox) {
+  if (sandbox && payVia === 'sdk') {
+    // JS SDK v6: <paypal-button> in the rush checkout opens PayPal in a popup; onApprove -> POST /api/rush/authorize.
+    const button = page.locator('#paypal-sdk-button');
+    await button.waitFor({ state: 'visible', timeout: 30_000 });
+    await page.locator('.sdk-pay small', { hasText: 'JS SDK v6' }).waitFor({ timeout: 20_000 }).catch(() => {});
+    await page.locator('.phone.checkout').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(1500); // the button renders inside its shadow root
+    await shot('4a-sandbox-sdk-button');
+    const sdkInfo = await page.locator('.sdk-pay small').first().innerText();
+    check('JS SDK v6 button rendered (client token, English locale)', /client token/.test(sdkInfo) && /locale en/.test(sdkInfo), sdkInfo);
+    if (cancelFirst) {
+      const [popup] = await Promise.all([ctx.waitForEvent('page', { timeout: 30_000 }), button.click()]);
+      await cancelPopup(popup);
+      await page.locator('#paypal-notice').waitFor({ timeout: 20_000 });
+      check('closing the PayPal popup shows the onCancel notice', /closed the PayPal window/.test(await page.locator('#paypal-notice').innerText()));
+      await shot('4d-sandbox-buyer-cancelled');
+    }
+    const [popup] = await Promise.all([ctx.waitForEvent('page', { timeout: 30_000 }), button.click()]);
+    await popup.waitForLoadState('domcontentloaded');
+    check('PayPal popup opens on sandbox.paypal.com', /sandbox\.paypal\.com/.test(popup.url()), new URL(popup.url()).hostname);
+    const lang = await popup.evaluate(() => document.documentElement.lang).catch(() => '');
+    await approveInPopup(popup, `${privateOut}/4b-sandbox-paypal-popup-review.png`, `${out}/4b-sandbox-paypal-popup-login.png`);
+    check('PayPal login page in the popup is English (before the buyer logs in)', /^en/i.test(lang), `html lang="${lang}"`);
+    await page.waitForSelector('text=Schedule committed', { timeout: 90_000 });
+    const viaSdk = await page.evaluate(async () => (await (await fetch('/api/state')).json()).rushOrder.paypal.some((s: { label: string }) => /JS SDK v6 onApprove/.test(s.label)));
+    check('authorized through onApprove (JS SDK), not the redirect', viaSdk);
+  } else if (sandbox) {
     const link = page.locator('#paypal-approve');
     await link.waitFor({ timeout: 30_000 });
     await shot('4a-sandbox-awaiting-approval');
@@ -123,7 +156,7 @@ for (let run = 1; run <= runs; run++) {
         check('PayPal cancel step', false, (e as Error).message.split('\n')[0]);
       }
     }
-    await approveInSandbox(browser, url, `${out}/4b-sandbox-paypal-checkout.png`);
+    await approveInSandbox(browser, url, `${privateOut}/4b-sandbox-paypal-checkout.png`);
     await page.waitForSelector('text=Schedule committed', { timeout: 90_000 });
   } else {
     if (cancelFirst || run === 1) {
@@ -145,7 +178,25 @@ for (let run = 1; run <= runs; run++) {
   const settled = (await row.innerText()).replace(/\s+/g, ' ');
   const err = (await page.locator('.flow .callout.bad').count()) ? await page.locator('.flow .callout.bad').innerText() : '';
   check(`${tag}Ship J-2044 captures less (no error)`, /captured CHF 2.610 of CHF 2.680/.test(settled) && !err, err || settled);
-  if (run === 1) await shot('5-settled');
+  if (run === 1) {
+    await row.locator('xpath=..').locator('details.pp-box summary').click();
+    await page.waitForTimeout(300);
+    await shot('5-settled');
+    const job = page.locator('.settle-job[data-job="J-2044"]');
+    await job.getByRole('button', { name: 'Check in PayPal' }).click();
+    await job.locator('.src-live-check').first().waitFor({ timeout: sandbox ? 30_000 : 5000 });
+    check('Check in PayPal reads the live status (GET authorization + capture)', /CAPTURED/.test(await job.locator('.pp-trail').innerText()));
+    await job.screenshot({ path: `${out}/5b-paypal-timeline.png` });
+  }
+  if (cancelRush || run === 1) {
+    const rushJob = page.locator('.settle-job', { hasText: '(rush)' });
+    await rushJob.getByRole('button', { name: 'Cancel rush (void)' }).click();
+    await rushJob.locator('.bad-text').waitFor({ timeout: sandbox ? 30_000 : 5000 });
+    check(`${tag}cancel rush voids its authorization`, /hold voided/.test(await rushJob.innerText()));
+    await rushJob.locator('details.pp-box summary').click();
+    await page.waitForTimeout(sandbox ? 3000 : 1200);
+    if (run === 1) await rushJob.screenshot({ path: `${out}/6-rush-cancelled-void.png` });
+  }
 }
 
 check('no browser console errors', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | '));

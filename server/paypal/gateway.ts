@@ -14,6 +14,8 @@ export interface CreateAuthorizeOrderInput {
   amount: Money;
   returnUrl?: string;
   cancelUrl?: string;
+  /** experience_context.locale for PayPal's approval pages, e.g. en-CH (BCP-47; sandbox accepts en-CH, en-GB, en-US). */
+  locale?: string;
 }
 
 export interface OrderResult {
@@ -106,6 +108,9 @@ export interface PayPalGateway {
   refundCapture(captureId: string, amount: Money | undefined, noteToPayer: string): Promise<RefundResult>;
   createPayout(batchId: string, emailSubject: string, items: PayoutItemInput[]): Promise<PayoutResult>;
   getPayout(payoutBatchId: string): Promise<PayoutResult>;
+  /** Browser-safe client token for the JS SDK v6 (POST /v1/oauth2/token, response_type=client_token). Sandbox only. */
+  clientToken?(): Promise<{ clientToken: string; expiresIn: number }>;
+  getCapture(captureId: string): Promise<CaptureResult>;
   verifyWebhook(headers: Record<string, string | undefined>, rawBody: string): Promise<boolean>;
   /** Subscribe to (mock-generated or real, verified) webhook events. Returns an unsubscribe function. */
   onEvent(handler: (e: PayPalWebhookEvent) => void): () => void;

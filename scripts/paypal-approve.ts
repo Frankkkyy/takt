@@ -14,7 +14,7 @@ async function fillIfVisible(page: Page, selector: string, value: string) {
   if ((await l.count()) && (await l.isVisible())) await l.fill(value);
 }
 
-async function loginAndApprove(page: Page, email: string, password: string) {
+async function loginAndApprove(page: Page, email: string, password: string, reviewShot?: string) {
   await page.locator('#email').fill(email);
   const next = page.locator('#btnNext');
   if (await next.isVisible()) await next.click();
@@ -30,6 +30,7 @@ async function loginAndApprove(page: Page, email: string, password: string) {
     await card.click();
     await page.waitForTimeout(800);
   }
+  if (reviewShot) await page.screenshot({ path: reviewShot }).catch(() => {});
   await submit.click();
 }
 
@@ -62,7 +63,7 @@ export async function approveInSandbox(browser: Browser, approveUrl: string, scr
   const password = process.env.PAYPAL_SANDBOX_BUYER_PASSWORD;
   for (let i = 1; i <= attempts; i++) {
     // Fresh context per attempt = fresh cookies = a new roll of PayPal's page variant.
-    const ctx = await browser.newContext({ locale: 'de-CH', viewport: { width: 1280, height: 1400 } });
+    const ctx = await browser.newContext({ locale: 'en-GB', viewport: { width: 1280, height: 1400 } });
     const page = await ctx.newPage();
     try {
       await page.goto(approveUrl, { waitUntil: 'domcontentloaded' });
@@ -80,4 +81,35 @@ export async function approveInSandbox(browser: Browser, approveUrl: string, scr
     }
   }
   throw new Error(`Sandbox approval failed after ${attempts} attempts: approve manually at ${approveUrl}`);
+}
+
+/**
+ * JS SDK v6 popup: the app page clicks the <paypal-button>, PayPal opens a popup with the same login / review pages
+ * as the redirect flow. Approve inside the popup; the SDK then closes it and calls onApprove in the app page.
+ * Needs PAYPAL_SANDBOX_BUYER_EMAIL / PASSWORD (the guest card form is not offered reliably in the popup).
+ */
+export async function approveInPopup(popup: Page, screenshotPath?: string, loginShot?: string): Promise<void> {
+  const email = process.env.PAYPAL_SANDBOX_BUYER_EMAIL;
+  const password = process.env.PAYPAL_SANDBOX_BUYER_PASSWORD;
+  if (!email || !password) throw new Error('approveInPopup needs PAYPAL_SANDBOX_BUYER_EMAIL / PAYPAL_SANDBOX_BUYER_PASSWORD');
+  await popup.waitForLoadState('domcontentloaded');
+  await popup.locator('#email').waitFor({ timeout: 60_000 });
+  await popup.waitForTimeout(3000); // the login page hydrates late; clicking earlier is ignored
+  if (loginShot) await popup.screenshot({ path: loginShot }).catch(() => {});
+  await loginAndApprove(popup, email, password, screenshotPath);
+  const urls: string[] = [];
+  popup.on('framenavigated', (f) => { if (f === popup.mainFrame()) urls.push(f.url().replace(/token=[^&]+/, 'token=…').replace(/PayerID=[^&]+/, 'PayerID=…')); });
+  try {
+    await popup.waitForEvent('close', { timeout: 90_000 });
+  } catch (e) {
+    await popup.screenshot({ path: (screenshotPath ?? 'popup.png').replace(/\.png$/, '-stuck.png') }).catch(() => {});
+    throw new Error(`PayPal popup did not close; navigations: ${urls.join(' -> ')}`);
+  }
+}
+
+/** Opens the popup, then closes it without approving (the SDK reports onCancel to the app). */
+export async function cancelPopup(popup: Page): Promise<void> {
+  await popup.waitForLoadState('domcontentloaded');
+  await popup.waitForTimeout(4000);
+  await popup.close();
 }

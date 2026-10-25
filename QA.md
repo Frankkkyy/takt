@@ -38,7 +38,25 @@ Evidence (all on the fix commit):
 
 New in the UI: a cold open (machine utilisation, the rush email slides in, hook line "Airlines pay passengers who can wait. Takt does it for factories, with PayPal."), board at 1-week zoom with customer names first, plain-language log with tool JSON behind a toggle, "Open … page on a phone" links, a visible note whenever the rules fallback answers, localised offer pages.
 
-Still open: B9 account setting, B10 (JS SDK v6 rush phone), B20 (PayPal page locale), Bryntum (from 31 Oct).
+Still open (at that time): B9 account setting, B10 (JS SDK v6 rush phone), B20 (PayPal page locale), Bryntum (from 31 Oct).
+
+## Engineer run 2026-10-26 (JS SDK v6, PayPal timeline, deploy plan) — for qa-tester to re-check
+
+What changed:
+- **Rush checkout with the PayPal JS SDK v6** (`web/src/components/PayPal.tsx`): inline in the console and at `#/pay` (phone). Browser-safe client token from `GET /api/paypal/client-token` (client id fallback), `createInstance({ …, locale: 'en-CH' })`, `findEligibleMethods({ currencyCode: 'CHF' })`, `createPayPalOneTimePaymentSession`, `start({ presentationMode: 'auto' }, Promise.resolve({ orderId }))`. `onApprove` → `POST /api/rush/authorize`, `onCancel` → `POST /api/rush/buyer-cancelled`. Redirect link kept as fallback (and shown as the main button if the SDK fails to load).
+- **English PayPal pages:** `experience_context.locale = en-CH` on the rush order (`PAYPAL_LOCALE`). Login page is English; after login PayPal uses the buyer account's language (see B20).
+- **PayPal timeline per job** in Settle (and for the rush order while it waits): every PayPal id with status, marked call / buyer / PayPal-confirmed / live check; authorization, capture and refund ids link to the sandbox merchant view. **Check in PayPal** runs live `GET`s. **Cancel rush (void)** before shipment, **Parts returned: refund** after shipment; the yield drops by the premium, compensations stay.
+- Seeded bookings: no buyer flow applies (they are past bookings), so they keep the sandbox test-card authorizations; documented, unchanged.
+- `docs/DEPLOY.md` + `render.yaml` (not deployed, no accounts created).
+
+Evidence:
+- `npm test`: **39/39** (new: SDK onApprove + webhook arrive together → one authorization and a full timeline; rush void before shipment with yield and compensations; refund after shipment + live check + payout confirmation on the job timeline; HTTP onCancel route, `en-CH` config, no client token in mock). `npm run typecheck` and `npm run build` clean.
+- `npm run smoke:sandbox`: **16/16** (new: client token issued, 900 s; rush cancelled after shipment → refund the rest, capture `REFUNDED`).
+- Playwright **sandbox, JS SDK popup** (`DEMO_CANCEL_FIRST=1`, final run): **14/14**: SDK button rendered with client token and locale `en-CH`; closing the popup shows the onCancel notice; popup on `www.sandbox.paypal.com` with `<html lang="en-CH">`; authorized through `onApprove`; committed; Ship J-2044 captured CHF 2'610 of 2'680; Check in PayPal; Cancel rush (void). Over the session 6 of 8 SDK runs passed first time (see SPIKE.md: one popup that didn't close, one race now fixed). Redirect fallback (`PAY_VIA=redirect`): 2/2.
+- Playwright **mock** (`DEMO_RUNS=3`): **20/20**, 0 console errors. Production build (`npm start`): `/healthz` 200, SPA 200, client-token 404 in mock.
+- Screenshots: `docs/screenshots/` (mock) and `docs/screenshots/sandbox/` (new: `4a-sandbox-sdk-button`, `4b-sandbox-paypal-popup-login` (English login, no account data), `5b-paypal-timeline`, `6-rush-cancelled-void`). PayPal pages after the buyer's login go to `qa/sandbox/` (gitignored). The old `4b-sandbox-paypal-checkout.png` (Spanish account page) was removed from `docs/`.
+
+Still open: B9/B20 need a Swiss/English sandbox buyer account (Francisco), Bryntum (from 31 Oct), deploy (Francisco's go). The sandbox merchant-view links (`/activity/payment/{id}`) need the sandbox business login and were not opened in this run.
 
 ### Bugs
 
@@ -53,7 +71,7 @@ Still open: B9 account setting, B10 (JS SDK v6 rush phone), B20 (PayPal page loc
 | B7 | **major** | Rules fallback invents a rush job from any text | **fixed** (asks the owner) |
 | B8 | **major** | Buyer cancels on PayPal → console gives no feedback | **fixed** (cancel_url route, log + notice) |
 | B9 | major (test data) | Sandbox buyer defaults to SEPA bank funding in Spanish; headless helper hangs | mitigated in scripts (card funding picked); account setting still open (Francisco) |
-| B10 | minor | Rush customer pays from the owner console; plain link, not JS SDK v6 | open (planned) |
+| B10 | minor | Rush customer pays from the owner console; plain link, not JS SDK v6 | **fixed** (JS SDK v6 button, `#/pay` phone checkout, redirect fallback) |
 | B11 | minor | Demo reply chips (incl. "Injection") shown to customers, all languages on every offer | **fixed** (same-language chips in a collapsed "Demo helper") |
 | B12 | minor | Offer page dates not localized ("Tue 27.10." on FR/DE pages) | **fixed** |
 | B13 | minor | Declined customer's link shows "Offer not found or expired." | **fixed** |
@@ -63,7 +81,7 @@ Still open: B9 account setting, B10 (JS SDK v6 rush phone), B20 (PayPal page loc
 | B17 | minor | README lists refund / void / reauthorize, but the app UI can't trigger them | **fixed** (README labels void/refund/reauthorize as API/smoke-verified) |
 | B18 | minor | `PUBLIC_BASE_URL` defaults to :5173, so the sandbox return URL breaks under `npm start` / hosting | **fixed** (derived from request host when unset; documented for Render) |
 | B19 | minor (code review) | Approval can get stuck if a PayPal call fails halfway through approve() | **fixed** (per-move retry, no double payout) |
-| B20 | minor | PayPal approval page language is German (CH) even with an English browser | open |
+| B20 | minor | PayPal approval page language is German (CH) even with an English browser | partly fixed: `locale en-CH` → English login page; after login PayPal uses the buyer account's language (needs a Swiss/English sandbox buyer) |
 
 #### B1 — blocker — Sandbox capture-less fails with DUPLICATE_TRANSACTION
 - **Steps:** sandbox mode → full demo path → Schedule committed → Settle → "Ship" on J-2044 (Atelier Rochat, capture CHF 2610 of 2680).

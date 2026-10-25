@@ -44,11 +44,15 @@ async function expectIssue(step: string, issue: string, fn: () => Promise<unknow
 
 console.log(`Takt sandbox smoke run ${run} (${CUR})\n`);
 
+// 0. JS SDK v6: the server issues a browser-safe client token (the secret never reaches the browser).
+const tok = await pp.clientToken();
+check('JS SDK v6 client token', tok.clientToken.length > 100 && tok.expiresIn > 600, `token issued, expires in ${tok.expiresIn} s`);
+
 // 1. Rush order: hold the rush price with intent=AUTHORIZE, buyer approves, server authorizes.
 const rushPrice = 2055;
 const order = await pp.createAuthorizeOrder({
   referenceId: `RUSH-${run}`, invoiceId: `TAKT-RUSH-${run}`, description: 'Rush: 6x harvester header bracket',
-  amount: chf(rushPrice), returnUrl: 'https://example.com/takt-return',
+  amount: chf(rushPrice), returnUrl: 'https://example.com/takt-return', locale: 'en-CH',
 });
 check('rush order created', order.status === 'PAYER_ACTION_REQUIRED' && !!order.approveUrl, `${order.orderId} ${order.status}`);
 let rushAuth: AuthorizationResult;
@@ -90,6 +94,9 @@ const rushCap = await pp.captureAuthorization(rushAuth.authorizationId, { amount
 check('rush captured at shipment', rushCap.status === 'COMPLETED', `${rushCap.captureId} ${CUR} ${rushCap.amount.value}`);
 const refund = await pp.refundCapture(rushCap.captureId, chf(20), 'Takt: CHF 20 back, delivered 2 hours late.');
 check('partial refund', refund.status === 'COMPLETED' && refund.amount.value === 20, `${refund.refundId} ${refund.status} ${refund.amount.currency} ${refund.amount.value}`);
+const rest = await pp.refundCapture(rushCap.captureId, undefined, 'Takt: rush cancelled after shipment, parts returned.');
+const capRead = await pp.getCapture(rushCap.captureId);
+check('rush cancelled after shipment: refund the rest', rest.status === 'COMPLETED' && capRead.status === 'REFUNDED', `${rest.refundId} ${rest.status} ${rest.amount.currency} ${rest.amount.value}; capture ${capRead.status}`);
 
 // 4. Cancellation: void an authorization.
 const toVoid = await pp.createCardAuthorization({ referenceId: 'J-2061', invoiceId: `TAKT-J2061-${run}`, description: 'Booking J-2061 (cancelled)', amount: chf(2050) });
