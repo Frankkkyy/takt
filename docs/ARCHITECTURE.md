@@ -160,7 +160,7 @@ sequenceDiagram
 | `server/agent/hybrid.ts` | Claude first, rules on any failure. `createAgent()` reads the `AGENT_*` env |
 | `server/agent/llm.ts` | Messages API client with record/replay cache, spend ceiling, per-minute limit, and token/cost accounting |
 | `server/agent/guardrails.ts` | Caps, budget, margin, date and amount-in-text checks, plus the owner-approval checklist |
-| `scripts/agent-eval.ts` | `npm run agent:eval`: 13 cases (DE/FR/EN intake, plans, accept/decline/counter/over-cap/injection/question) with pass/fail and token cost → `docs/AGENT_EVAL.md` |
+| `scripts/agent-eval.ts` | `npm run agent:eval`: 17 cases (DE/FR/EN intake, plans, accept/decline/counter/over-cap/injection/question) with pass/fail and token cost → `docs/AGENT_EVAL.md` |
 | `server/paypal/gateway.ts` | `PayPalGateway` interface: every money move |
 | `server/paypal/mock.ts` | Offline implementation, used until credentials exist and for tests |
 | `server/paypal/rest.ts` | Sandbox REST client: OAuth, JS SDK client token, Orders, Payments, Payouts, webhook verification. Reconciles by polling and emits `RECON-…` webhook-shaped events. Verified against the sandbox on 25 Oct 2026 |
