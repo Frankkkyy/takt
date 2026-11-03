@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { DemoState, LedgerEvent } from '../../shared/types';
 import { chf, dayLong, getState, post } from './api';
-import { Board } from './components/Board';
 import { Flow } from './components/Flow';
 import { OfferPage } from './components/Offer';
 import { RushPayPage } from './components/PayPal';
 import { RUSH_SAMPLES } from './samples';
+
+// Bryntum Scheduler Pro is big; the customer phone pages (#/offer, #/pay) never load it.
+const Board = lazy(() => import('./components/Board').then((m) => ({ default: m.Board })));
 
 function useHash() {
   const [hash, setHash] = useState(location.hash);
@@ -151,7 +153,9 @@ export function App() {
       {coldOpen && <Story state={state} onOpen={() => { setDraft(STORY_SAMPLE.text); document.querySelector<HTMLTextAreaElement>('.intake textarea')?.focus(); }} />}
       <main className="main">
         <section className="left">
-          <Board state={state} showProposal={showProposal} />
+          <Suspense fallback={<div className="board board-loading muted">Loading the board…</div>}>
+            <Board state={state} showProposal={showProposal} />
+          </Suspense>
           <div className="ledger">
             <h3>PayPal &amp; agent log</h3>
             <ul>

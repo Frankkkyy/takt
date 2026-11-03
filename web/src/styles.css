@@ -41,29 +41,45 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background:
 .left { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 .board { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.board-head, .row { display: grid; grid-template-columns: 150px 1fr; }
-.board-head { background: #f8fafc; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
-.res-col { padding: 10px 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; justify-content: center; }
-.res-col span { font-size: 11px; color: var(--muted); }
-.res-col strong { font-size: 13px; }
-.days { display: grid; grid-template-columns: repeat(10, 1fr); }
-.day { padding: 10px 6px; border-left: 1px solid var(--line); text-align: center; }
-.day.fri { border-right: 2px solid #c9d2df; }
-.row { border-bottom: 1px solid var(--line); height: 92px; }
-.lane { position: relative; }
-.gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line); }
-.bar { position: absolute; top: 12px; height: 40px; border-radius: 6px; color: #fff; font-size: 11px; padding: 4px 6px; overflow: hidden; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.15); transition: left .6s ease, width .6s ease, opacity .3s; }
-.bar-id { font-weight: 700; display: block; }
-.bar-cust { opacity: .9; }
-.bar.rush { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--amber); color: #2a1d00; }
-.bar.fading { opacity: .35; }
-.bar.bumped { outline: 2px dashed #fff; }
-.bar.ghost { top: 52px; height: 30px; background: transparent; border: 2px dashed; color: var(--ink); box-shadow: none; }
-.ghost-rush { border-color: var(--amber) !important; background: rgba(224,161,0,.15) !important; }
-.ghost-bump { border-color: #b5677d !important; background: rgba(181,103,125,.12) !important; }
 .legend { display: flex; gap: 16px; padding: 8px 12px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
 .sw { display: inline-block; width: 14px; height: 10px; border-radius: 3px; vertical-align: middle; margin-right: 4px; border: 2px dashed transparent; }
-.sw.solid { background: #5b7db1; }
+
+/* Bryntum Scheduler Pro board */
+.board-bar { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: #f8fafc; flex-wrap: wrap; }
+.board-bar .legend { padding: 0; gap: 12px; font-size: 11px; }
+.sched-wrap { }
+.histo-wrap { border-top: 2px solid var(--line); }
+.histo-res.full b { color: var(--bad); }
+.res-cell { display: flex; flex-direction: column; line-height: 1.2; }
+.res-cell b { font-size: 13px; }
+.res-cell small, .histo-res { font-size: 11px; color: var(--muted); }
+:root { --pay-authorized: #3d6fb0; --pay-prepaid: #7b5fb0; --pay-compensated: #1f8a5b; --pay-rush: #e0a100; }
+.sw.pay-authorized { background: var(--pay-authorized); }
+.sw.pay-prepaid { background: var(--pay-prepaid); }
+.sw.pay-compensated { background: var(--pay-compensated); }
+.sw.pay-rush { background: var(--pay-rush); }
+.sw.ghost-rush-sw { border-color: var(--amber); background: rgba(224,161,0,.15); }
+.sw.ghost-bump-sw { border-color: #b5677d; background: rgba(181,103,125,.12); }
+.bryntum-board .b-sch-event-wrap .takt-ev { border-radius: 5px; color: #fff; font-size: 11px; padding: 0 4px; box-shadow: 0 1px 2px rgba(0,0,0,.18); overflow: hidden; }
+.bryntum-board .takt-ev.pay-authorized { background: var(--pay-authorized); }
+.bryntum-board .takt-ev.pay-prepaid { background: var(--pay-prepaid); }
+.bryntum-board .takt-ev.pay-compensated { background: var(--pay-compensated); }
+.bryntum-board .takt-ev.pay-rush { background: var(--pay-rush); color: #2a1d00; box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--amber); }
+.bryntum-board .takt-ev.moving { opacity: .38; }
+.bryntum-board .takt-ev.bumped { outline: 2px dashed #fff; outline-offset: -3px; }
+.bryntum-board .takt-ev.ghost { background: rgba(181,103,125,.12); border: 2px dashed #b5677d; color: var(--ink); box-shadow: none; }
+.bryntum-board .takt-ev.ghost.ghost-rush { background: rgba(224,161,0,.18); border-color: var(--amber); animation: ghost-pulse 1.6s ease-in-out infinite; }
+@keyframes ghost-pulse { 50% { background: rgba(224,161,0,.34); } }
+.ev-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.ev-txt b, .ev-txt span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-txt span { font-size: 10px; opacity: .9; }
+.takt-tip { font-size: 12px; line-height: 1.5; }
+.takt-tip .late { color: var(--bad); font-weight: 700; }
+.takt-tip small { color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+.bryntum-board .rush-due { border-left: 2px solid var(--bad); }
+.bryntum-board .b-histogram rect.b-series-effort { fill: #a9c1de; }
+.bryntum-board .b-histogram rect.b-series-effort.full { fill: #c0392b; }
+@media (prefers-reduced-motion: reduce) { .bryntum-board .takt-ev.ghost.ghost-rush { animation: none; } }
 
 .ledger { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
 .ledger h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
@@ -199,8 +215,6 @@ table.options { width: 100%; border-collapse: collapse; font-size: 12px; }
 .zoom { display: flex; gap: 2px; background: #e8ecf2; border-radius: 6px; padding: 2px; }
 .zoom button { font: inherit; font-size: 11px; border: 0; background: transparent; padding: 3px 6px; border-radius: 4px; cursor: pointer; color: var(--muted); }
 .zoom button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.1); }
-.bar-id { text-overflow: ellipsis; overflow: hidden; }
-.bar-cust { display: block; text-overflow: ellipsis; overflow: hidden; font-size: 10px; }
 
 /* log: humanised, raw tool JSON behind a toggle */
 .ledger .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -257,3 +271,6 @@ table.options { width: 100%; border-collapse: collapse; font-size: 12px; }
 .settle-job .offer-row b { flex: 1 1 100%; }
 .settle-job .settle-actions { margin-left: auto; }
 p.small { font-size: 12px; }
+.bryntum-board .b-histogram text.b-bar-legend { writing-mode: horizontal-tb; text-anchor: middle; dominant-baseline: central; font-size: 12px; font-weight: 700; fill: #1b2533; }
+.bryntum-board .b-histogram text.b-bar-legend.full { fill: #fff; }
+.board-loading { padding: 24px; min-height: 400px; }
