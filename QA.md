@@ -58,6 +58,26 @@ Evidence:
 
 Still open: B9/B20 need a Swiss/English sandbox buyer account (Francisco), Bryntum (from 31 Oct), deploy (Francisco's go). The sandbox merchant-view links (`/activity/payment/{id}`) need the sandbox business login and were not opened in this run.
 
+## Engineer run 2026-11-03 (Bryntum Scheduler Pro board) — for qa-tester to re-check
+
+What changed:
+- **Board = Bryntum Scheduler Pro 7.3.8 trial** (`@bryntum/schedulerpro` aliased to the public `@bryntum/schedulerpro-trial`, plus `@bryntum/schedulerpro-react`; dev dependencies, nothing vendored, see THIRD_PARTY.md). Machines = resources, ops = events (positioned by Takt's scheduler, `manuallyScheduled`), cut → bend = dependencies, working time Mon–Fri 07–15 only, 1 week default / 2 weeks.
+- **ResourceHistogram** on the same project (8 h shift calendar): "100 %" per machine and day, week's booked % per machine. Ghost events are excluded from it.
+- **Ghost proposal:** after "Make room", dashed ghost events for the rush ops and each bumped job's new slot, badge "+N d · CHF X"; the bumped jobs' current bars fade. **On PayPal confirmation** the rush ghost turns solid in place (same event id) and the bumped jobs slide to the agreed slot (900 ms `changeEvent` transition; sampled in the browser: Rochat's laser bar moves 311 → 383 px over the transition).
+- **Drag → review (stretch):** dragging a booked job later calls `POST /api/jobs/:id/review-move`. Firm customer → refused with the reason; beyond stated flexibility → refused; date broken for a flexible customer → capped offer (capture less / payout) in the customer's language (rules-agent template, code prices). Read-only what-if: the bar snaps back, schedule, promise and PayPal unchanged, one log line. Not possible while a proposal is on the board.
+- Board is lazy-loaded (Bryntum chunk ~4.7 MB, 1.8 MB gzip), so `#/offer` and `#/pay` phone pages don't download it.
+
+Evidence:
+- `npm run typecheck` clean · `npm test` **40/40** (new: drag review: firm refused, flexible capped offer whose text states the same CHF, payout for prepaid, too-far and earlier moves refused, schedule unchanged) · `npm run build` clean.
+- Playwright **mock** demo path: **14/14** checks (new: board has ≥ 20 events and a machine ≥ 95 %; drag review offers and snaps back; ≥ 3 ghost events after Make room; after commit no ghosts and the rush is solid), 0 console errors. `DEMO_RUNS=2`: 22/22. Production build (`npm start`): 14/14.
+- Screenshots (mock): `docs/screenshots/b1-board-booked.png`, `b2-board-proposal.png`, `b3-board-committed.png`, `b4-board-drag-review.png`, plus the refreshed `0`–`6` set.
+
+Known / open:
+- The trial watermark is drawn by Bryntum as a faint background on the grid; the opaque rows cover most of it, so it is barely visible in screenshots. Takt does not hide it.
+- Dev only: the React wrapper logs a development warning about the `project` prop (it flags any ProjectModel instance). No warnings in the production build.
+- `docs/screenshots/sandbox/` still shows the old placeholder board (needs a sandbox run).
+- The drag-review offer text reuses the rush-offer template ("a customer has an urgent repair…"); the review does not send the offer yet.
+
 ### Bugs
 
 | # | Sev | Title | Status |
@@ -76,7 +96,7 @@ Still open: B9/B20 need a Swiss/English sandbox buyer account (Francisco), Brynt
 | B12 | minor | Offer page dates not localized ("Tue 27.10." on FR/DE pages) | **fixed** |
 | B13 | minor | Declined customer's link shows "Offer not found or expired." | **fixed** |
 | B14 | minor | Phone bezel drawn inside a real phone at 390 px | **fixed** |
-| B15 | minor | Board unreadable in a video; raw JSON tool dumps dominate the log | partly fixed (1-week zoom default, log humanised, header); Bryntum pending |
+| B15 | minor | Board unreadable in a video; raw JSON tool dumps dominate the log | **fixed** (Bryntum Scheduler Pro board, 1-week zoom, histogram, ghost proposal; log humanised) |
 | B16 | minor | `npm run agent:eval` overwrites docs/AGENT_EVAL.md with a 0-token replay report | **fixed** (replay-only runs do not write the report) |
 | B17 | minor | README lists refund / void / reauthorize, but the app UI can't trigger them | **fixed** (README labels void/refund/reauthorize as API/smoke-verified) |
 | B18 | minor | `PUBLIC_BASE_URL` defaults to :5173, so the sandbox return URL breaks under `npm start` / hosting | **fixed** (derived from request host when unset; documented for Render) |

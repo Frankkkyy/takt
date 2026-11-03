@@ -167,7 +167,7 @@ sequenceDiagram
 | `scripts/sandbox-smoke.ts` | `npm run smoke:sandbox`: the whole money story against the real sandbox (rush authorize, capture less, refund, void, reauthorize guard, payout) |
 | `scripts/paypal-approve.ts` | Headless sandbox buyer approval: redirect page (account login or guest test card) and the JS SDK v6 popup (account login) |
 | `server/app.ts` | Flow state machine: intake → plan → offers → free-text replies → **owner approval** → payouts + rush authorization → commit on webhook → ship (capture less) / cancel rush (void before shipment, refund after) / live PayPal check |
-| `web/src/*` | React UI: owner console (board, flow panel, PayPal log, per-job PayPal timeline), the `#/offer/:id` customer page and the `#/pay` rush checkout (`components/PayPal.tsx`: JS SDK v6) |
+| `web/src/*` | React UI: owner console (Bryntum Scheduler Pro board + resource histogram in `components/Board.tsx`, lazy-loaded; flow panel, PayPal log, per-job PayPal timeline), the `#/offer/:id` customer page and the `#/pay` rush checkout (`components/PayPal.tsx`: JS SDK v6) |
 
 ## Principles
 
@@ -184,8 +184,8 @@ sequenceDiagram
 
 ## Next (phase 2)
 
-1. Bryntum Scheduler Pro replaces `Board.tsx` (trial starts ≥ 31 Oct). Machines become resources and ops become events; ghost events show the proposal, and the accepted plan animates in.
+1. ~~Bryntum Scheduler Pro replaces `Board.tsx`~~: done (resources, events, dependencies, histogram, ghost proposal, animated commit, drag → move review). Next: let the drag review send its offer through the normal approval path, and let Claude word it.
 2. ~~JS SDK v6 button for the rush customer~~: done (redirect kept as fallback).
 3. ~~LLM negotiator plus free-text counter-offers~~: done (phase 2, see "The agent").
 4. Expose the money moves as typed agent tools next to `@paypal/agent-toolkit` tools, for a buyer-agent MCP endpoint (stretch).
-5. Hosting on Render (plan in [DEPLOY.md](DEPLOY.md), `render.yaml`), plus THIRD_PARTY.md.
+5. Hosting on Render (plan in [DEPLOY.md](DEPLOY.md), `render.yaml`). ~~THIRD_PARTY.md~~: done.

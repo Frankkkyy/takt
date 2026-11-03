@@ -5,7 +5,7 @@ When a job shop's schedule is full and a rush order arrives, Takt makes room. It
 > Status: phase 2.
 > - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It scores 17/17 on the eval.
 > - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock. The rush customer pays with the **PayPal JS SDK v6** button (redirect as fallback), and every job shows its PayPal timeline: order, approval, authorization, capture, void, refund, payout, each with its PayPal id.
-> - **Timeline:** a simple one-week board until Bryntum Scheduler Pro is wired in.
+> - **Timeline:** Bryntum Scheduler Pro (trial). Machines are resources, operations are events with cut → bend dependencies, a resource histogram shows the shop at 100 %, the agent's proposal appears as ghost events, and the accepted plan slides in when PayPal confirms. Drag a booked job later and Takt reviews the move.
 > - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state. Render plan and `render.yaml`: [docs/DEPLOY.md](docs/DEPLOY.md) (not deployed yet).
 
 ![Cold open: the laser and press brake are full, a rush email arrives](docs/screenshots/0-cold-open.png)
@@ -89,8 +89,27 @@ Payees always come from booking records. Customer text is wrapped as untrusted d
 - **Hosted demo:** not deployed yet. The URL and a dedicated sandbox buyer (country Switzerland, English) will be listed here; see [docs/DEPLOY.md](docs/DEPLOY.md#how-judges-test). Sandbox accounts hold test money only.
 - **Guest card** on the PayPal page (redirect fallback): `4005519200000004`, any future expiry, CVV `123`.
 
+## How Bryntum Scheduler Pro is used
+
+The owner console's board (`web/src/components/Board.tsx`) is a real Scheduler Pro project, not painted bars. Takt's own deterministic scheduler stays the source of truth; the board mirrors it with minimal store updates, so changes animate instead of re-rendering.
+
+| What you see | Scheduler Pro feature |
+|---|---|
+| 4 machines, one working week (Mon–Fri 07:00–15:00, nights and weekends cut from the axis), "2 weeks" on demand | resources, `workingTime`, custom view presets, `forceFit` |
+| Each operation as a bar, coloured by payment state (authorized hold, prepaid, compensated, rush); cut → bend lines | events (`manuallyScheduled`, positioned by Takt), `eventRenderer`, dependencies |
+| "100 %" per machine and day, plus the week's booked share | `ResourceHistogram` on the same project, with an 8-hour shift calendar as capacity |
+| Hover: customer, operation, promised date, PayPal status and ids | `eventTooltip` |
+| The rush customer's deadline | `timeRanges` |
+| **Make room:** dashed ghost events for the rush slot and each bumped job's new slot, with a badge (+1 d · CHF 50) | stacked event layout, ghost events in the same store (excluded from the histogram) |
+| **PayPal confirms:** the rush ghost turns solid in place and the bumped jobs slide to their agreed slots | `transition.changeEvent` / `removeEvent` animations |
+| **Drag a booked job later:** firm customers are refused with the reason; a flexible customer whose date breaks gets a capped offer (capture less or payout) drafted in their language. It's a what-if: the bar snaps back, nothing moves or pays | `eventDrag` + `beforeEventDropFinalize` → `POST /api/jobs/:id/review-move` |
+
+![Bryntum board: the agent's proposal as ghost events above a resource histogram at 100 %](docs/screenshots/b2-board-proposal.png)
+
+![Dragging Rochat's job two days later: Takt drafts a capped offer in French](docs/screenshots/b4-board-drag-review.png)
+
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture diagram, the agent sequence and the guardrails. See [docs/SPIKE.md](docs/SPIKE.md) for the API verification log.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Third-party services and libraries keep their own licences. In particular, Bryntum Scheduler Pro (planned) is a commercial library, used here under its trial terms and not included in this repository.
+MIT, see [LICENSE](LICENSE). Third-party services and libraries keep their own licences. In particular, Bryntum Scheduler Pro is a commercial library: Takt installs the public trial package from npm (`@bryntum/schedulerpro-trial`, aliased as `@bryntum/schedulerpro`) under Bryntum's trial terms, and no Bryntum files are included in this repository. The trial shows a watermark. See [THIRD_PARTY.md](THIRD_PARTY.md).
