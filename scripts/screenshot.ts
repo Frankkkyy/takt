@@ -81,6 +81,27 @@ for (let run = 1; run <= runs; run++) {
   await page.waitForTimeout(5200);
   check(`${tag}cold open shows the full shop, the rush email and the hook`, await page.locator('.story .hook').isVisible() && await page.locator('.mail-toast').isVisible());
   if (run === 1) await shot('0-cold-open');
+  const board = page.locator('.bryntum-board');
+  await board.locator('.b-sch-event').first().waitFor({ timeout: 15_000 });
+  const full = await board.locator('.histo-res.full').count();
+  check(`${tag}Bryntum board renders ops as events and the histogram shows a fully booked machine`, (await board.locator('.b-sch-event').count()) >= 20 && full >= 1, `${full} machine(s) ≥ 95 %`);
+  if (run === 1) await board.screenshot({ path: `${out}/b1-board-booked.png` });
+  if (run === 1) {
+    // Two-way board: drag Rochat's bend two days later -> Takt reviews the move (what-if) and the bar snaps back.
+    const bar = board.locator('[data-event-id="J-2044|PB1"]').first();
+    const r = (await bar.boundingBox())!;
+    const dayPx = (await board.locator('.b-time-axis-sub-grid').first().boundingBox())!.width / 5;
+    await page.mouse.move(r.x + 15, r.y + r.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i++) await page.mouse.move(r.x + 15 + (dayPx * 2 * i) / 10, r.y + r.height / 2);
+    await page.mouse.up();
+    await board.locator('.move-review').waitFor({ timeout: 5000 });
+    const text = await board.locator('.move-review').innerText();
+    const back = (await bar.boundingBox())!;
+    check('dragging a flexible job later: Takt offers capped compensation, bar snaps back', /offer compensation/i.test(text) && /CHF \d+/.test(text) && Math.abs(back.x - r.x) < 3, text.split('\n')[2]?.slice(0, 120));
+    await board.screenshot({ path: `${out}/b4-board-drag-review.png` });
+    await board.locator('.move-review .close').click();
+  }
   await page.getByRole('button', { name: 'Open request' }).click();
   if (sample) await page.getByRole('button', { name: sample, exact: true }).click();
   await page.getByRole('button', { name: 'Let Takt read it' }).click();
@@ -90,6 +111,9 @@ for (let run = 1; run <= runs; run++) {
   await page.waitForSelector('text=Takt can make room', { timeout: 45_000 });
   await page.waitForTimeout(400);
   if (run === 1) await shot('2-make-room');
+  const ghosts = await board.locator('.takt-ev.ghost').count();
+  check(`${tag}proposal shows as ghost events (rush + bumped jobs)`, ghosts >= 3, `${ghosts} ghost events`);
+  if (run === 1) await board.screenshot({ path: `${out}/b2-board-proposal.png` });
   await page.getByRole('button', { name: /^Send \d offers?$/ }).click();
   await page.waitForSelector('.phone');
   if (run === 1) {
@@ -171,6 +195,8 @@ for (let run = 1; run <= runs; run++) {
   check(`${tag}schedule committed after PayPal confirmed`, true);
   await page.waitForTimeout(800);
   if (run === 1) await shot('4-committed');
+  check(`${tag}committed plan on the board: ghosts gone, rush event solid`, (await board.locator('.takt-ev.ghost').count()) === 0 && (await board.locator('.takt-ev.pay-rush').count()) >= 2);
+  if (run === 1) await board.screenshot({ path: `${out}/b3-board-committed.png` });
   // Settle: ship Rochat's table frames = capture less on his authorization (final_capture=true).
   const row = page.locator('.settle .offer-row', { hasText: 'J-2044' });
   await row.getByRole('button', { name: 'Ship' }).click();
