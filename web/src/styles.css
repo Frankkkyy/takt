@@ -274,3 +274,15 @@ p.small { font-size: 12px; }
 .bryntum-board .b-histogram text.b-bar-legend { writing-mode: horizontal-tb; text-anchor: middle; dominant-baseline: central; font-size: 12px; font-weight: 700; fill: #1b2533; }
 .bryntum-board .b-histogram text.b-bar-legend.full { fill: #fff; }
 .board-loading { padding: 24px; min-height: 400px; }
+/* board drag → move review */
+.board-bar .hint { color: var(--navy); font-style: italic; }
+.move-review { position: relative; margin: 8px 10px; padding: 10px 36px 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: #f8fafc; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+.move-review.offer { border-color: #e7c66b; background: #fff8e6; }
+.move-review.fits { border-color: #a6d8bf; background: #eefaf3; }
+.move-review.refused { border-color: #e7b1aa; background: #fdf0ee; }
+.move-review small { color: var(--muted); font-size: 11px; }
+.move-review p { margin: 0; }
+.move-review blockquote { margin: 4px 0 0; padding: 6px 10px; border-left: 3px solid var(--amber); background: #fff; font-size: 12px; }
+.move-review .lang { font-size: 10px; font-weight: 700; background: var(--navy); color: #fff; border-radius: 3px; padding: 1px 4px; }
+.move-review .close { position: absolute; top: 6px; right: 8px; border: 0; background: transparent; font-size: 18px; cursor: pointer; color: var(--muted); }
+.move-review .linkish { border: 0; background: none; color: var(--navy); text-decoration: underline; cursor: pointer; font-size: 11px; margin-left: 6px; }

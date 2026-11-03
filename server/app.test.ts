@@ -45,6 +45,22 @@ test('demo path: intake -> plan -> offers -> accept -> owner approves -> authori
   }
 });
 
+test('board drag review: firm customers refused, flexible ones get a capped offer, nothing moves', () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  const before = JSON.stringify(app.snapshot().schedule);
+  const firm = app.reviewMove('J-2041', 1); // Keller: never move
+  assert.equal(firm.verdict, 'refused');
+  const flex = app.reviewMove('J-2044', 2); // Rochat: flexible up to 4 days, authorization
+  assert.equal(flex.verdict, 'offer');
+  assert.equal(flex.offer?.mechanism, 'reduced-capture');
+  assert.ok(flex.offer!.compensationChf <= flex.offer!.capChf);
+  assert.match(flex.offer!.message, new RegExp(`CHF ${flex.offer!.compensationChf}\\b`));
+  assert.equal(app.reviewMove('J-2047', 1).offer?.mechanism, 'payout'); // Meier prepaid
+  assert.equal(app.reviewMove('J-2044', 9).verdict, 'refused'); // beyond stated flexibility
+  assert.equal(app.reviewMove('J-2044', -1).verdict, 'refused');
+  assert.equal(JSON.stringify(app.snapshot().schedule), before);
+});
+
 test('free-text counter-offer within the cap is agreed and changes the capture amount', async () => {
   const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
   await app.intake(REQUEST);

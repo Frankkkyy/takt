@@ -142,6 +142,7 @@ export function createServer(deps: ServerDeps) {
     if (s?.app.buyerCancelled(token)) console.info('PayPal buyer cancelled the rush order (session notified)');
     res.redirect('/?paypal=cancelled');
   });
+  server.post('/api/jobs/:id/review-move', wrap((app, req) => app.reviewMove(String(req.params.id), Number(req.body?.delayDays ?? 0))));
   server.post('/api/jobs/:id/ship', wrap((app, req) => app.ship(String(req.params.id))));
   server.post('/api/jobs/:id/cancel', wrap((app, req) => app.cancel(String(req.params.id))));
   server.post('/api/jobs/:id/refund', wrap((app, req) => app.refund(String(req.params.id))));

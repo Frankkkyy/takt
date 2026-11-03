@@ -1,11 +1,11 @@
 // Takt application service: in-memory demo state + the rush / bump / settle flow.
 // One TaktApp = one demo shop. The HTTP layer keeps one per browser session (server/sessions.ts).
 import { randomBytes } from 'node:crypto';
-import type { AgentStatus, BumpOffer, Customer, DemoState, Job, LedgerEvent, MoneyMove, PayPalStep, Plan, PlanOptionView, RushRequest } from '../shared/types.js';
+import type { AgentStatus, BumpOffer, Customer, DemoState, Job, LedgerEvent, MoneyMove, MoveReview, PayPalStep, Plan, PlanOptionView, RushRequest } from '../shared/types.js';
 import { buildSeedJobs, customers as seedCustomers, machines, SHOP } from './domain/seed.js';
 import { schedule } from './domain/scheduler.js';
 import { planRush, rushToJob, type PlanCandidate, type PlanResult } from './domain/planner.js';
-import { compensationBudget, perJobCap } from './domain/pricing.js';
+import { compensation, compensationBudget, perJobCap } from './domain/pricing.js';
 import type { AgentResult, AgentStep, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
 import { dayLabel, emptyStatus, NeedsClarification, relDay } from './agent/agent.js';
 import { templateOffer } from './agent/deterministic.js';
@@ -186,6 +186,43 @@ export class TaktApp {
     this.log('api', `Sandbox booking authorization for ${job.id}`, `Seeded with a sandbox test card: POST /v2/checkout/orders intent=AUTHORIZE → ${a.status}, valid until ${a.expirationTime?.slice(0, 10)}`, a.authorizationId, a.amount.value);
   }
   private cust(id: string) { return this.state.customers.find((c) => c.id === id); }
+
+  // ---- Board: the owner drags a job, the agent reviews the move ---------------------------------------
+  /**
+   * What-if for a job dragged `delayDays` working days later on the board. Read-only: the schedule, the promise and
+   * PayPal stay untouched. Code decides feasibility and price (firm customers, stated flexibility, per-job cap); the
+   * offer text uses the same multilingual template as the rules agent, so it never states another amount.
+   */
+  reviewMove(jobId: string, delayDays: number): MoveReview {
+    const job = this.state.jobs.find((j) => j.id === jobId && j.status === 'booked');
+    if (!job || job.rush) throw new Error(`No booked job ${jobId} that can be moved`);
+    const c = this.cust(job.customerId);
+    if (!c) throw new Error(`Unknown customer for ${jobId}`);
+    const days = Math.round(delayDays);
+    const fromDay = this.state.schedule.timing[job.id]?.deliveryDay ?? job.dueDay;
+    const toDay = fromDay + days;
+    const base = { jobId, customerName: c.name, delayDays: days, fromDay, toDay, dueDay: job.dueDay };
+    const day = (d: number) => dayLabel(this.boardStart, d, 'en');
+    let review: MoveReview;
+    if (days <= 0) {
+      review = { ...base, verdict: 'refused', reason: `Takt only moves work later: pulling ${jobId} forward would need its material and a free machine earlier.` };
+    } else if (toDay <= job.dueDay) {
+      review = { ...base, verdict: 'fits', reason: `${c.name} still gets ${jobId} by ${day(job.dueDay)} as promised (new delivery ${day(toDay)}). No offer needed.` };
+    } else if (!c.flexible) {
+      review = { ...base, verdict: 'refused', reason: `${c.name} is a firm promise (${c.note.replace(/\.$/, '')}). Moving ${jobId} to ${day(toDay)} would break their date, so Takt won't ask.` };
+    } else if (toDay - job.dueDay > c.maxDelayDays) {
+      review = { ...base, verdict: 'refused', reason: `${c.name} said they can wait at most ${c.maxDelayDays} working day(s); ${day(toDay)} is ${toDay - job.dueDay} day(s) late.` };
+    } else {
+      const late = toDay - job.dueDay;
+      const chf = compensation(job, c, late);
+      const mechanism: BumpOffer['mechanism'] = job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout';
+      const draft = templateOffer({ jobId, jobTitle: job.title, customerId: c.id, customerName: c.name, contact: c.contact, lang: c.lang, fromDay: job.dueDay, toDay, delayDays: late, compensationChf: chf, mechanism, capChf: perJobCap(job) }, this.boardStart);
+      const how = mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout (prepaid)';
+      review = { ...base, verdict: 'offer', reason: `Moving ${jobId} to ${day(toDay)} breaks ${c.name}'s date (${day(job.dueDay)}) by ${late} day(s). Offer CHF ${chf} via ${how}? Cap CHF ${perJobCap(job)}.`, offer: { compensationChf: chf, capChf: perJobCap(job), mechanism, lang: c.lang, message: draft.message, messageEn: draft.messageEn } };
+    }
+    this.log('agent', `Board move reviewed: ${jobId} +${days} d`, `${review.verdict === 'offer' ? 'Would offer' : review.verdict === 'fits' ? 'Fits' : 'Refused'}: ${review.reason} (what-if, nothing moved)`, undefined, review.offer?.compensationChf);
+    return review;
+  }
 
   private logSteps(steps: AgentStep[]) {
     for (const s of steps) this.log(s.kind === 'tool' ? 'tool' : s.kind === 'guardrail' ? 'guardrail' : 'agent', s.title, s.detail);

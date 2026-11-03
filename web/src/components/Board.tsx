@@ -12,8 +12,8 @@ import '@bryntum/schedulerpro/schedulerpro.css';
 import '@bryntum/schedulerpro/svalbard-light.css';
 import '@bryntum/schedulerpro/fontawesome/css/fontawesome.css';
 import '@bryntum/schedulerpro/fontawesome/css/solid.css';
-import { BOARD_DAYS, HOURS_PER_DAY, type DemoState, type Job, type Schedule } from '../../../shared/types';
-import { chf, dayDate, dayShort } from '../api';
+import { BOARD_DAYS, HOURS_PER_DAY, type DemoState, type Job, type MoveReview, type Schedule } from '../../../shared/types';
+import { chf, dayDate, dayShort, post } from '../api';
 
 const DAY_START_HOUR = 7;
 const HISTO_ROW = 30;
@@ -240,6 +240,8 @@ function viewRange(boardStartIso: string, days: number) {
 
 export function Board({ state, showProposal }: Props) {
   const [days, setDays] = useState(5);
+  const [review, setReview] = useState<MoveReview | { error: string } | null>(null);
+  const [showEn, setShowEn] = useState(false);
   const schedulerRef = useRef<BryntumSchedulerPro>(null);
   const histogramRef = useRef<BryntumResourceHistogram>(null);
 
@@ -265,6 +267,9 @@ export function Board({ state, showProposal }: Props) {
   const plan = state.plan;
   const proposal = showProposal && plan?.feasible ? plan.proposed : undefined;
   const events = useMemo(() => buildEvents(state, proposal), [state, proposal]);
+  // Bryntum binds listeners once; read the latest values through refs.
+  const live = useRef({ proposal, iso: state.boardStartIso });
+  live.current = { proposal, iso: state.boardStartIso };
   const sig = JSON.stringify(events) + JSON.stringify(state.machines);
 
   // Mirror the server state into the Bryntum stores with minimal changes, so moves animate instead of re-rendering.
@@ -352,10 +357,31 @@ export function Board({ state, showProposal }: Props) {
           <span><i className="sw pay-prepaid" /> prepaid</span>
           <span><i className="sw pay-compensated" /> compensated</span>
           <span><i className="sw pay-rush" /> rush</span>
+          {!proposal && <span className="hint">Drag a booked job later: Takt reviews the move</span>}
           {proposal && <span><i className="sw ghost-rush-sw" /> proposed rush slot</span>}
           {proposal && <span><i className="sw ghost-bump-sw" /> proposed new slot (needs consent)</span>}
         </div>
       </div>
+      {review && (
+        <div className={`move-review ${'error' in review ? 'refused' : review.verdict}`} role="status" aria-live="polite">
+          <button className="close" aria-label="Dismiss" onClick={() => setReview(null)}>×</button>
+          {'error' in review ? (
+            <p>{review.error}</p>
+          ) : (
+            <>
+              <small>Board move · {review.jobId} {review.customerName} · +{review.delayDays} d · what-if, nothing moved · code checks dates and caps</small>
+              <b>{review.verdict === 'offer' ? 'Breaks the promised date: offer compensation?' : review.verdict === 'fits' ? 'Fits the promise' : 'Takt will not move this job'}</b>
+              <p>{review.reason}</p>
+              {review.offer && (
+                <blockquote>
+                  <span className="lang">{review.offer.lang.toUpperCase()}</span> {showEn ? review.offer.messageEn : review.offer.message}
+                  {review.offer.lang !== 'en' && <button className="linkish" onClick={() => setShowEn((v) => !v)}>{showEn ? 'Original' : 'Show English'}</button>}
+                </blockquote>
+              )}
+            </>
+          )}
+        </div>
+      )}
       <div className="sched-wrap">
         <BryntumSchedulerPro
           ref={schedulerRef}
@@ -374,7 +400,35 @@ export function Board({ state, showProposal }: Props) {
           useInitialAnimation="fade-in"
           transition={{ changeEvent: true, removeEvent: true }}
           transitionDuration={900}
-          readOnly
+          // Two-way board: the owner may drag a booked job later on its machine; Takt reviews the move (what-if) and
+          // the bar snaps back, because only agreed and PayPal-confirmed plans change the schedule.
+          eventDragFeature={{ constrainDragToResource: true, showTooltip: true }}
+          eventResizeFeature={false}
+          eventDragCreateFeature={false}
+          eventEditFeature={false}
+          taskEditFeature={false}
+          eventMenuFeature={false}
+          scheduleMenuFeature={false}
+          cellMenuFeature={false}
+          cellEditFeature={false}
+          dependencyEditFeature={false}
+          eventCopyPasteFeature={false}
+          enableDeleteKey={false}
+          onBeforeEventDrag={({ eventRecord }) => {
+            const i = info(eventRecord as unknown as { get: (f: string) => unknown });
+            return !!i && !i.ghost && i.payState !== 'rush' && !live.current.proposal;
+          }}
+          onBeforeEventDropFinalize={({ context }) => {
+            const i = info(context.eventRecord as unknown as { get: (f: string) => unknown });
+            const iso = live.current.iso;
+            const delay = workDayIndex(iso, context.startDate) - workDayIndex(iso, context.eventRecord.startDate as Date);
+            context.valid = false; // snap back: the review is a what-if
+            if (!i || delay === 0) return;
+            setShowEn(false);
+            post<MoveReview>(`/api/jobs/${encodeURIComponent(i.jobId)}/review-move`, { delayDays: delay })
+              .then((r) => setReview(r.result))
+              .catch((e: Error) => setReview({ error: e.message }));
+          }}
           columns={[
             {
               text: 'Machine',
@@ -386,7 +440,7 @@ export function Board({ state, showProposal }: Props) {
             },
           ]}
           timeRangesFeature={{ showCurrentTimeLine: false, showHeaderElements: true }}
-          dependenciesFeature={{ radius: 6 }}
+          dependenciesFeature={{ radius: 6, allowCreate: false }}
           eventTooltipFeature={{
             hoverDelay: 150,
             template: ({ eventRecord }: { eventRecord: SchedulerEventModel }) => {
@@ -458,6 +512,13 @@ const SHORT: Record<string, string> = { alpdrone: 'Alpine Drone' };
 function shortName(customerId: string, full: string): string {
   if (customerId === 'rush' || !customerId) return full;
   return SHORT[customerId] ?? customerId.charAt(0).toUpperCase() + customerId.slice(1);
+}
+
+/** Working-day index of a date on the board (0 = first Monday; weekends count as the Friday before). */
+function workDayIndex(boardStartIso: string, d: Date): number {
+  const start = dayDate(boardStartIso, 0);
+  const cal = Math.floor((new Date(d.getFullYear(), d.getMonth(), d.getDate()).valueOf() - start.valueOf()) / 86_400_000 + 0.5);
+  return Math.floor(cal / 7) * 5 + Math.min(((cal % 7) + 7) % 7, 4);
 }
 
 function dayTime(d: Date): string {

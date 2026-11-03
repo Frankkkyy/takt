@@ -204,6 +204,20 @@ export interface Plan {
   chosenBy: 'llm' | 'deterministic';
 }
 
+/** The owner dragged a booked job on the board: what the agent says about it (read-only, nothing moves or pays). */
+export interface MoveReview {
+  jobId: string;
+  customerName: string;
+  delayDays: number;
+  fromDay: number;
+  toDay: number;
+  dueDay: number;
+  verdict: 'fits' | 'offer' | 'refused';
+  /** Owner-facing explanation (English). */
+  reason: string;
+  offer?: { compensationChf: number; capChf: number; mechanism: BumpOffer['mechanism']; lang: Lang; message: string; messageEn: string };
+}
+
 export type PayPalEventType =
   | 'CHECKOUT.ORDER.APPROVED'
   | 'PAYMENT.AUTHORIZATION.CREATED'
