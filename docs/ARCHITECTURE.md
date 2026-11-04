@@ -144,6 +144,19 @@ sequenceDiagram
 
 **PayPal timeline per job.** Every PayPal object a job touches is recorded on the job (`job.paypal`): booking authorization, agreed capture-less, payout batch, rush order → approval → authorization, capture, void, refund. Entries are marked as our call, the buyer's action, PayPal's confirmation (webhook or reconcile poll) or a live check ("Check in PayPal" runs `GET` on the authorization, capture and payout). Authorization, capture and refund ids link to the sandbox merchant view (needs the sandbox business login).
 
+## Board moves (the owner drags a job)
+
+The owner can drag a booked job later on the Bryntum board. It takes the same path as the agent's proposals:
+
+1. **Code reviews the move** (`TaktApp.reviewMove`): firm customers, delays beyond what the customer said they can wait and moves with no later slot that keeps every other promise are refused. Otherwise the planner tries every later position in the dispatch order and keeps the latest delivery up to the dragged day. The price is the normal compensation, capped at 12 % of the job price minus any compensation the job already got.
+2. **Claude writes the offer** (`draft_move_offer`, Claude Haiku 5.5). The prompt gives the real reason (the owner is re-planning the machines) and what the move frees. The tool rejects a text with another amount or day, or one that invents an emergency. Without a key, or past the live-AI limits, the rules template writes it.
+3. **The owner sends it.** The board shows the new slot as a ghost; the bar itself does not move.
+4. **The customer answers** on their offer page: buttons, or free text that the negotiation agent reads within the cap.
+5. **The owner approves** with five checks: the customer accepted, the amount is within the job cap, the delay is within what they said they can wait, a planner re-check that every other promise holds, and the payee comes from the booking record.
+6. **PayPal settles:** capture less at shipment (authorization) or a Payout (prepaid). Only then does the schedule change and the bar slide.
+
+A move that keeps the promised date needs no consent and no money: the owner applies it with one click. While a board move is open, the rush flow waits, and the other way round.
+
 ## Modules
 
 | Path | Role |
@@ -160,7 +173,7 @@ sequenceDiagram
 | `server/agent/hybrid.ts` | Claude first, rules on any failure. `createAgent()` reads the `AGENT_*` env |
 | `server/agent/llm.ts` | Messages API client with record/replay cache, spend ceiling, per-minute limit, and token/cost accounting |
 | `server/agent/guardrails.ts` | Caps, budget, margin, date and amount-in-text checks, plus the owner-approval checklist |
-| `scripts/agent-eval.ts` | `npm run agent:eval`: 17 cases (DE/FR/EN intake, plans, accept/decline/counter/over-cap/injection/question) with pass/fail and token cost → `docs/AGENT_EVAL.md` |
+| `scripts/agent-eval.ts` | `npm run agent:eval`: 20 cases (DE/FR/EN intake, plans, accept/decline/counter/over-cap/injection/question, board-move offers and reply) with pass/fail and token cost → `docs/AGENT_EVAL.md` |
 | `server/paypal/gateway.ts` | `PayPalGateway` interface: every money move |
 | `server/paypal/mock.ts` | Offline implementation, used until credentials exist and for tests |
 | `server/paypal/rest.ts` | Sandbox REST client: OAuth, JS SDK client token, Orders, Payments, Payouts, webhook verification. Reconciles by polling and emits `RECON-…` webhook-shaped events. Verified against the sandbox on 25 Oct 2026 |
@@ -184,7 +197,7 @@ sequenceDiagram
 
 ## Next (phase 2)
 
-1. ~~Bryntum Scheduler Pro replaces `Board.tsx`~~: done (resources, events, dependencies, histogram, ghost proposal, animated commit, drag → move review). Next: let the drag review send its offer through the normal approval path, and let Claude word it.
+1. ~~Bryntum Scheduler Pro replaces `Board.tsx`~~: done (resources, events, dependencies, histogram, ghost proposal, animated commit, drag → move review). Done 4 Nov: a drag runs the normal approval path and Claude words the offer (see "Board moves" above).
 2. ~~JS SDK v6 button for the rush customer~~: done (redirect kept as fallback).
 3. ~~LLM negotiator plus free-text counter-offers~~: done (phase 2, see "The agent").
 4. Expose the money moves as typed agent tools next to `@paypal/agent-toolkit` tools, for a buyer-agent MCP endpoint (stretch).

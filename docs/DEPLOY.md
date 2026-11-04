@@ -71,6 +71,8 @@ Card (guest checkout on the PayPal page): 4005519200000004, any future expiry, C
 
 Path: open the app → "Open request" → "Let Takt read it" → "Make room" → "Send 2 offers" → answer on the two phones (chips under "Demo helper") → "Approve & send to PayPal" → in the rush checkout, **Pay with PayPal** → log in with the buyer account in the PayPal popup → "Schedule committed" → Ship / Check in PayPal / Cancel rush (void).
 
+Board move (before or after the rush): drag Atelier Rochat's bend bar two days later → "Send offer to Atelier Rochat" → accept on the phone → "Approve & send to PayPal" → the bar slides; Ship captures CHF 70 less. Rochat +2 days replays a recorded Claude draft; dragging any other job asks Claude live (counted against the live-AI limits above) or uses the rules template. No new environment variables.
+
 **Judge buyer account (to create, sandbox only).** The workspace's current sandbox buyer is a Spanish account (Spanish pages, CaixaBank SEPA preselected), which is wrong for an English video and for judges. Francisco should create a dedicated one in developer.paypal.com → Testing Tools → Sandbox Accounts → Create account: **Personal**, country **Switzerland**, a password we can publish, a Visa card as funding source, and some balance. Its credentials are safe to publish: sandbox accounts only hold test money and cannot touch real funds.
 
 **Language: what we can and can't force.**

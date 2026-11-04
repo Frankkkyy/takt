@@ -3,9 +3,9 @@
 When a job shop's schedule is full and a rush order arrives, Takt makes room. It finds booked customers who can wait, pays them for it through PayPal, and charges the rush customer a premium that covers the compensation. The schedule only changes when PayPal confirms the money moves.
 
 > Status: phase 2.
-> - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It scores 17/17 on the eval.
+> - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It also writes the offer when the owner drags a job on the board. It scores 20/20 on the eval.
 > - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock. The rush customer pays with the **PayPal JS SDK v6** button (redirect as fallback), and every job shows its PayPal timeline: order, approval, authorization, capture, void, refund, payout, each with its PayPal id.
-> - **Timeline:** Bryntum Scheduler Pro (trial). Machines are resources, operations are events with cut → bend dependencies, a resource histogram shows the shop at 100 %, the agent's proposal appears as ghost events, and the accepted plan slides in when PayPal confirms. Drag a booked job later and Takt reviews the move.
+> - **Timeline:** Bryntum Scheduler Pro (trial). Machines are resources, operations are events with cut → bend dependencies, a resource histogram shows the laser and press brake at 100 %, the agent's proposal appears as ghost events, and the accepted plan slides in when PayPal confirms. Drag a booked job later: Takt prices the move, Claude writes the offer, and it runs the same customer consent → owner approval → PayPal path before the bar really moves.
 > - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state. Render plan and `render.yaml`: [docs/DEPLOY.md](docs/DEPLOY.md) (not deployed yet).
 
 ![Cold open: the laser and press brake are full, a rush email arrives](docs/screenshots/0-cold-open.png)
@@ -17,7 +17,7 @@ npm install
 cp .env.example .env     # optional: add PayPal sandbox credentials
 npm run dev              # API on :8787, web on http://localhost:5173
 npm test                 # unit, guardrail, HTTP/session tests; demo path 10x with rules and 10x with recorded Claude responses
-npm run agent:eval       # 17-case agent eval (replays recordings, free, report untouched; add -- --live to re-run on Claude, ~USD 0.01)
+npm run agent:eval       # 20-case agent eval (replays recordings, free, report untouched; add -- --live to re-run on Claude, ~USD 0.013)
 npm run dev:sandbox      # same app against the real PayPal sandbox
 npm run smoke:sandbox    # the whole money story against the sandbox, 16 checks (headless buyer approval)
 npm run build && npm start   # production: one process serves API + built web app on :8787
@@ -62,7 +62,7 @@ Payees always come from booking records. Customer text is wrapped as untrusted d
 - Responses for the scripted demo inputs are recorded (record/replay keyed by the exact request), so the hosted demo and the video replay real Claude output at zero cost.
 - New inputs go live, limited per session, per IP and per day, and by a per-process USD ceiling. Replays never count.
 
-**Eval.** [docs/AGENT_EVAL.md](docs/AGENT_EVAL.md): 17/17 cases pass (the full live run cost USD 0.007; the FR/DE path cases were added later for USD 0.003). The cases cover DE/FR/EN intake, plans (each sample is a real squeeze: the FR email bumps the French and a German customer), the scripted replies on the DE and FR paths, accept, decline, counter, over-cap and question replies, and a prompt injection that demands a CHF 2000 payout to a new email; that one is escalated to the owner and nothing changes.
+**Eval.** [docs/AGENT_EVAL.md](docs/AGENT_EVAL.md): 20/20 cases pass (full live re-run on 4 Nov after the demo data changed: 28 calls, USD 0.013). The cases cover DE/FR/EN intake, plans (each sample is a real squeeze: the FR email bumps the French and a German customer), the scripted replies on the DE and FR paths, accept, decline, counter, over-cap and question replies, and a prompt injection that demands a CHF 2000 payout to a new email; that one is escalated to the owner and nothing changes. Three cases cover board moves: the offer drafts for Rochat (FR, capture less) and Meier (DE, payout), which may not invent an emergency, and Rochat's reply to a move offer.
 
 ![Agent flow: replies negotiated by Claude, owner approval with guardrail checks](docs/screenshots/3c-owner-approval.png)
 
@@ -102,11 +102,13 @@ The owner console's board (`web/src/components/Board.tsx`) is a real Scheduler P
 | The rush customer's deadline | `timeRanges` |
 | **Make room:** dashed ghost events for the rush slot and each bumped job's new slot, with a badge (+1 d · CHF 50) | stacked event layout, ghost events in the same store (excluded from the histogram) |
 | **PayPal confirms:** the rush ghost turns solid in place and the bumped jobs slide to their agreed slots | `transition.changeEvent` / `removeEvent` animations |
-| **Drag a booked job later:** firm customers are refused with the reason; a flexible customer whose date breaks gets a capped offer (capture less or payout) drafted in their language. It's a what-if: the bar snaps back, nothing moves or pays | `eventDrag` + `beforeEventDropFinalize` → `POST /api/jobs/:id/review-move` |
+| **Drag a booked job later:** firm customers, moves beyond what the customer said they can wait and moves that would break another promise are refused with the reason. Otherwise code finds the slot and the price (under the job cap), Claude writes the offer in the customer's language, and the new slot shows as a ghost. The owner sends it, the customer answers, the owner approves with five checks, PayPal settles (capture less at shipment or a payout), and only then the bar moves. A move that keeps the promised date applies with one click and no money | `eventDrag` + `beforeEventDropFinalize` (bar snaps back until approved) → `POST /api/jobs/:id/review-move`, `/api/move/send`, `/api/move/approve` |
 
 ![Bryntum board: the agent's proposal as ghost events above a resource histogram at 100 %](docs/screenshots/b2-board-proposal.png)
 
-![Dragging Rochat's job two days later: Takt drafts a capped offer in French](docs/screenshots/b4-board-drag-review.png)
+![Dragging Rochat's job two days later: Takt prices the move and shows the new slot as a ghost](docs/screenshots/b4-board-drag-review.png)
+
+![The board move waits for the owner: money move and five guardrail checks, the customer's French offer page](docs/screenshots/b6-move-approval.png)
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the architecture diagram, the agent sequence and the guardrails. See [docs/SPIKE.md](docs/SPIKE.md) for the API verification log.
 

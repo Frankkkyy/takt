@@ -78,6 +78,27 @@ Known / open:
 - `docs/screenshots/sandbox/` still shows the old placeholder board (needs a sandbox run).
 - The drag-review offer text reuses the rush-offer template ("a customer has an urgent repair…"); the review does not send the offer yet.
 
+## Engineer run 2026-11-04 (100 % week, board moves through the approval path) — for qa-tester to re-check
+
+What changed:
+- **Demo data:** week 1 has the laser, the press brake (and the 5-axis mill) at **100 %**: two bend-only jobs whose parts were cut last week (J-2038 Vuilleumier, J-2039 Gasser) fill the press brake's Monday gaps, and a laser-only job (J-2065 Alpine Drone) fills Friday afternoon. The 3-axis mill stays at 68 %. The rush story is unchanged: Hof Schmid 6 brackets by Tuesday, Rochat +1 d CHF 50 (capture less) and Meier +1 d CHF 45 (payout), premium CHF 685, rush CHF 2'055, net CHF 590 → CHF 570 after Rochat's counter (Thursday, CHF 70); Ship J-2044 captures CHF 2'610 of 2'680. A Rochat decline still re-plans with Brunner (CHF 55) + Meier. After the commit the press brake reads 99 % (half an hour idle on Tuesday while the rush is cut).
+- **Board moves run the normal path.** Drag → code review (firm customers, stated flexibility, a later slot that keeps every other promise, price under the job cap minus earlier compensation) → **Claude Haiku drafts the offer** (`draft_move_offer`, own prompt: the owner is re-planning, no emergency; the tool rejects a wrong amount/day or emergency wording; rules template as fallback) → ghost slot on the board → owner **Send offer** → customer answers (buttons or free text through the negotiation agent, ceiling = job cap) → **approval card with 5 checks** → PayPal (capture less at shipment, or Payout) → the bar slides. Moves that keep the promise: "Apply move (no money)". While a board move is open the rush flow is blocked, and vice versa. Compensations now add up per job (a job moved on the board and then bumped by a rush keeps both, within one cap).
+- New routes: `/api/move/send`, `/api/move/approve`, `/api/move/discard`. The header's net uplift can now go negative (a board move costs the shop money): shown as "−CHF 70".
+
+Evidence:
+- `npm run typecheck` clean · `npm test` **49/49** (new: move capture-less end to end incl. Ship, move payout + double click pays once, decline/discard/tampering change nothing, counter within limits, "fits" applies without money, rush and move block each other, rush still works after a committed move, HTTP flow per session, Claude move draft with rejected emergency/wrong-amount drafts, fallback template, recorded move replay) · `npm run build` clean.
+- `npm run agent:eval -- --live`: **20/20**, 28 live calls, 67 833 in / 14 185 out tokens, **USD 0.0132** (all recordings re-recorded because the seed changed the planner's tool results).
+- Playwright **mock** (`npm start`, `AGENT_CACHE=replay-only`): **18/18** checks, 0 console errors; `DEMO_RUNS=2`: 26/26.
+- `npm run smoke:sandbox`: **16/16**.
+- Playwright **sandbox** (JS SDK popup, `DEMO_CANCEL_FIRST=1`, replay-only): **22/22**, incl. the board move with a real sandbox capture-less (CHF 2'610 of 2'680) and the full rush path. `docs/screenshots/sandbox/` regenerated with the Bryntum board (new: `b1`–`b7b`). The English login page is the only PayPal page in `docs/`; pages after login went to `qa/sandbox/` (gitignored).
+- Screenshots (mock): new `b5-move-offer-draft`, `b6-move-approval`, `b7-board-move-committed`, `b7b-move-committed`; `b4-board-drag-review` now shows the ghost slot.
+
+**Bryntum v8.0:** checked 4 Nov (`npm view @bryntum/schedulerpro-trial versions`, `@bryntum/schedulerpro-react`): the latest is **7.3.8** for both, no 8.x published. No upgrade done; re-check before the freeze (9 Nov).
+
+Known / open:
+- The board-move flow is not in the video script yet beyond the optional insert (script text updated with the real numbers: Rochat → Thursday, CHF 70).
+- A board move costs the shop money with no rush premium behind it; there is no owner budget for moves other than the per-job cap. Fine for the demo; a real shop would want a weekly move budget.
+
 ### Bugs
 
 | # | Sev | Title | Status |
