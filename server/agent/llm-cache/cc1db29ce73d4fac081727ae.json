@@ -1,0 +1,51 @@
+{
+ "key": "cc1db29ce73d4fac081727ae",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:28:52.406Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX6F3E8VhynpgRr8j7D",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSogYKEAgTGAI4AUIIdGhpbmtpbmcSDNi9+aYeCYZxMcAL0hoMEklDkQ2YZhhnTwV4IjB1xpl+nDoC9mvmBnUKOKmKqWXYOeiA2HamoygRrEdaE3uM3mss4tEOVnKXjklt38wqvwXM6KfC+jbNdG8ioXvbvfTlV8+QfNRCjsO0UZkoefqy8ufmoE2h6j/fero/gJwqkBkcFJezJV0z/27UA74t3F4/tdHggv5spN3igUqHiKDSZN17UDmmDpAql1IAt90UDTynSHVoimudxXVk/vdpFc11PxoKBjF15gb2JrggKna7RvpLV8TdoqOlvGdYzZC+MLvfkwAswRTt1mGxJ4uuNXtAGOElPYZ6GDTwuKg2+46K4taVS2Ql4LvoQbVCMLcEOVOYC7una9Ff8QaLPUmbgXQWyOcszRAQoWDryYjhF861wyUrFoLMAoQugHRwaN+0/fBARwqRudLYbTQMw81fFJYTvKKFIS6uCN44jvuF19hS9fgApYxOC9e6G+q3X9sl8oDqgusV64ZHfgIqNI77AefQs4io0pLcIDMgxKlNxpiuh5QPI9X6Gj7pexntymLm2A91kos6g1sOHZrwdQV8cre8gQ/G7+mexWt8dBeqxcK42Ka9Cmk76voIp7TitDrkgDJO9aZ2XMF/hIbikB+F/GzZCP7NMRTs/Zk8UqRmgxaNlTpgMv+ZD5rme/pLNpVYHT3hvE0gokHh6IF4ZiE+ir7S0pqX/lv0uxlGWlSWGkVvFwEmEc5avSCR8+2aFCei0Xs5k2Isjj91H1v1NzTCuLj6UFlmuDz8SkKQMSDH8bpVOsnFQrZdq/z8WvBdcZA4I6A6mhb7g7TniqU43IIIAUtnvr/3JYPatNukCTNoABNDKhfT1Yd7hBpTUXt10sjFZlruGfQQnbk1ad9Y3FBEmEoTiiqfWLfRHKUwfVK97H5pKm5Tg7m9dW+H49nrow4GUBffq3DJO0cKMcnhnoLiEjH1N1x0TOHo3uPKyxtAS7UO6l4ll7s9Uwm5asRYZ8MnaD0mf6lLwEmussKFBufkbJQkcVaRyNP8cYROh7N4cv4BGAE="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01RtuxfnXuEvdE5EXUchsGrV",
+    "name": "decline_offer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "reason": "Customer declined the move to Wednesday (day 2) for J-2044 with CHF 50 compensation, saying their own customer is waiting for the parts."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2327,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2327,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 198,
+   "output_tokens_details": {
+    "thinking_tokens": 68
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

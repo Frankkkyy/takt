@@ -1,16 +1,16 @@
 {
- "key": "c3829523e6c4b7bd0cf82bcf",
+ "key": "5a1a81deef765b034cb80da5",
  "model": "claude-haiku-5-5",
- "recordedAt": "2026-10-25T21:22:12.794Z",
+ "recordedAt": "2026-11-04T20:28:11.760Z",
  "response": {
   "model": "claude-haiku-5-5",
-  "id": "msg_011CgPf522ijuYMKXnPZ45s6",
+  "id": "msg_011CgiX3JGs5uAjX7GhbYgSf",
   "type": "message",
   "role": "assistant",
   "content": [
    {
     "type": "tool_use",
-    "id": "toolu_01DKPCsbcJ9cpGUdc3YjgNn3",
+    "id": "toolu_01Srwp43FtSqQLVr7LG5Xq4b",
     "name": "plan_bump_options",
     "input": {
      "exclude_customer_ids": []
@@ -26,10 +26,10 @@
   "stop_details": null,
   "usage": {
    "input_tokens": 4,
-   "cache_creation_input_tokens": 0,
-   "cache_read_input_tokens": 2167,
+   "cache_creation_input_tokens": 2164,
+   "cache_read_input_tokens": 0,
    "cache_creation": {
-    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 2164,
     "ephemeral_1h_input_tokens": 0
    },
    "output_tokens": 60,

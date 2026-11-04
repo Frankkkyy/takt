@@ -1,0 +1,51 @@
+{
+ "key": "2f991244c2b75f7c8a0d6e4d",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:28:13.942Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX3Qq1Kgzbs3A4JfAwG",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS9AUKEAgTGAI4AUIIdGhpbmtpbmcSDF2BXjElYYslBHC4zRoMSxb5cvj3RNWHnVCrIjAvXVoRw2Utp/8c4nnksLBkdI5NhA1nSv+y+aj9KI1xJ99y1u3F5rzWeSB8N+klgPMqkQWlT6liR4d8FpmOmX5VEo4AcWZIlF17rdBCNWRhi4zjrdn0r06TVnG12hyx5wzHUadPh2N9eOPjgK6PfLjLL/wCpIbNV8QLEKG4efAqkgowamGhM8+qE272gNE3/k68kMVrjZ+HCMytnYKbrwf3u8QUzpRNntV/dCzoQ9S9uTz5pqJZ39Rzh23KpY/El0J2d0ce/XCGE/8nJH/ntk1qtZ2w/LsZTHdJaR6BRu5+Pexi4y6+CO3hQ0FB4zMfgqXbjZjOFuQreAZkVnsDlrnEMzo6fzjKdXH2x1OU9jSBO70XEL4QItlh37Vtc3c/ueXqhvpKOOZ3nlBlRq7JC//u5RNNXhpovSJ8oKetTSq/HS3VbWEFrKC/A3oBMuF1Hi6PSd01Qa+dOUmFHaOpxacfnB4LsDi96dQMF9febV/orDLt8WPM2ESPRRsXD6In9FSaUoqhJF0jjAleFIART8qfrUTy6/DeQH51rjj+AdSb2Iwl15bkmlhvU4AbDfdhfADAiotsqnXP5ODVL+4EK+b82V8jxuXIvWH71+TBLbLaz/W6GO7zkKGUJWghZQQxLura5DMShzDwfSwMjLJIb7fxqqz+iPfN3+wz5SC1XR4PkqxFXnKcZUQA6ItsRzlhijFjNezWwXNhbxpGcH+29eWMmJ2odB6EhmbyJdu3nzYjpHRHuhuhQs0IyCloBzbNAaGFUiPbXPlG//qtn++YPvehk+XVUCrqS8311Cwy10itjtwU/k5HPkugXHojclQ74dbqaEZVuLkUfRT0of1mS0mgAHXa94oAhpFeJ28tfGKL4Db+Icrtqg0DEuADCtMZiw2E0vONVOdIfDuWBx1EjDc/fyuAXii3KOaTYIx5jDPQhplsHqEYAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01XMc5urLnUsRKx9CvRuQroT",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Option 1A gives the highest net uplift at CHF 590 (rush price CHF 2,055 minus CHF 95 total compensation, against a CHF 685 premium), and both bumps are one day each. Atelier Rochat (CHF 50, flexible up to 4 days, exhibition is three weeks out) and Studio Meier Licht (CHF 45, flexible up to 5 days, prepaid so paid by PayPal Payout) are both recorded as flexible and have no deadline conflict. Total compensation is well within the CHF 411 cap, and neither keller nor alpdrone nor vuilleumier is touched."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 671,
+   "cache_read_input_tokens": 2164,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 671,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 351,
+   "output_tokens_details": {
+    "thinking_tokens": 67
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

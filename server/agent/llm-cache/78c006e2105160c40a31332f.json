@@ -1,0 +1,54 @@
+{
+ "key": "78c006e2105160c40a31332f",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:29:33.667Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX9EDhRZaLoDxDbxWCr",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSvQcKEAgTGAI4AUIIdGhpbmtpbmcSDLEVbd1i6JWoPddJfxoMMH0h86jinQYwqh71IjANaETpY/kLu7GWc/il1thpMMHZYUnYS/JQnn3GeciS+SYPiWw/WQd4k2ZFkxivI+Aq2gbXv+qie3ElMwEY69P9xQlZByy/iRKsLm4oKQaMmTHbwqTol/HgQnf0IvqbldM2iTrmKuVqs21DIvNlzzzvNzApegbK3dWuwTuu8geqQRq6NemvgJKo6Y0+EnnQDSHCavnL8rKWdLJdHgo7mJg07RyKl4YhvitGKUb2txygVv3J97hiS4oD5NHE8XYz5Iq8O5dWHyH1SMWsLwtO1svq8Jyr/lBFVLAeNsCaKu8UwNyVvVOBRZfrhpYh6i+f47vB8OX39zw9acjqqMnKW4DUt96yWSGpePEKUomkngRyFFojA2rur9kfcdBBMtYcayTQmFxraa98qIbP0kyqhO8gDuqu8U1jYeuujfs4BGlc43s2fKAuwFp9pP6RgpTkNKp4xki/R7J8JliIbdmuTwQvdFpu8C6AGo5muoIuMak56leJYDRiLwKl2j6tNVQDJ6umh0q76eGYEnRK5aNRW3yNRxP0QRFLv8iBPEsbxuUXbenPVNuwSbTc0dgwVoQirQ7wjP2M4j8c5fZnKMtEqm/mrsBGq8XU5oouOf4toDuHyo7sJOe8zwlv8sYVSP1qpz4X9bjIurkdE+vtSqwirYOGpIJMAo2a8Oc4C6yB4QvuEFARTVboCryau0oESfPiHdof287/IsdOVvrsg0v8Ls30UutVnZZEfuHmC0MVt40kFQZJvuwi8HXaR7pjQDcY4ao2zJmXtyhot/msPxUXspKFAknnlowiC7K7UsWFfkAlTgUJv9wUh4VeI8ry0zV6/IcaKcboHhVt7RwF0x54Nt7+LQWryD0e1mbrniY20oahLhsM+NWrtdlI9rnuHYlvc0rE3c+pZx8AdC0KY6wH2XAgaehgMDUHfkNfQ0udt2W7IfCdjuT1YEj0J/Ghm7Glf41+Y6vji7J8r8V1QmaoimMVcCA+0aYnDqK72k+/RmzE+T/xjKX6phqYh06533ph3eaSTxQDidiay46bvWh3RCNIGcJLx20XMEG83YdSOYNZgSL6W4AogQWjB6TmAjlVXeHCsl9sJjcaRYiZi2wE3RVo/RZpl2+a6uy2tpibmO3CjvagFfr9RwEGi79Nyjcqwi0c9q5fpSjhdMcIPv0wXRu9V39etuj4NbYKgqnqmgdWH3u6fqU9Az/nqoCiiIkYAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_012B8C3cU8QikHJvUk2PSf2L",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-MOVE-J-2044",
+     "compensation_chf": 70,
+     "delivery_day": 3,
+     "message": "Merci beaucoup, Monsieur Rochat. Nous confirmons la livraison de votre commande J-2044 pour jeudi, avec une compensation de CHF 70. Nous ne pouvons pas garantir l'heure exacte le matin, mais la livraison aura lieu jeudi. Merci de votre compréhension.",
+     "message_en": "Thank you, Mr. Rochat. We confirm delivery of your order J-2044 for Thursday, with compensation of CHF 70. We cannot guarantee a morning time, but delivery will take place Thursday. Thank you for your understanding."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2329,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2329,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 488,
+   "output_tokens_details": {
+    "thinking_tokens": 138
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

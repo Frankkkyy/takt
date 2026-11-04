@@ -1,0 +1,54 @@
+{
+ "key": "5fbabda8c289b57fcc21a14d",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:29:13.022Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX7gH4HK3H4WrwDjc94",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS/AgKEAgTGAI4AUIIdGhpbmtpbmcSDEepCnJ03lJOUZ286xoMd1Ndwp9hURWkAWRxIjBtkK24YIjsDD6T9RV1/bUrszmDrUrL4/8130JHsvRNae2ibXnzLF8BfjSat2TxRDgqmQggL2Sp1yeR0dPjSguZ+jpjmkElIBaOcgd0Mzan7qwTZDmlrW00a4/Xbo0DFnkRzoa32uTY4yMoVNv24Z8vVk4yEvISrwj1kCrFoZ3y+GgqqgNdPVAxS5bdYDz+2jV9QXo1OK4coHqHPzvogARFXwubV4e3FAUlhDravyBOY2STd99ilT+Mgi8hQNBkDmVL3/TNYof73PwQwAViQq9oqINPshQAT0n6jjQtR+RwkNprYdOtu29v4hkltUjexdgUWLGXpNeWC+89MCmj6yjy1q32vQ91YPl9uWOI8NiP22iwdX7j6tzovBjctgH/TJgrO8tAlp046Ttgk+NvPbNopzUrMb95WISu0GzF4gf3M7C1HoR8XbUgcCz1isoPO/Lga69c4xVvATczOq/TwcM4bbnUGH1EPMNYNT5MZU11uYoCk+JGP1vMawcajqFV6EdF6BuEAK6ArhTvz6ZgsJkDFE++KoT2eGSJOKmaro/6ZeBBXPCO7kHgDw0vHcBZ1YFxtjMCtpXjaWYEGYHB2tcbEqPUdlGOhiM1bGY3GE3KmU97QzSPRAQe0laLsAhYNK6u5iW6xzctocl/ZsI0B0DSzPOWoUZ79N1G1pJjCKlFtTX5vDCZ/mb1YVATiBX2WMuX65GFCPOBP7EByS9Wg2Z7P0H58FuCNKVoFJZbN97nVdD3CnByzBn55D+6FKx/8P4+olArMyOwTDq3CarJaUV8eiO80eUJJhfQvl+6GYPtTnprMV9Wuty1KN5RblnVUFI5+Q1I2hmt4kgpTC8IkvED6wv+SaR8iYIuqVK6kR6TDuQypgSDh6v4t8JUfd3HzfXJFxslC3WXaFfUz6oGKwR0+44QzeelOEteXEdjE7YbpL34vHdmEh2f9RBtAbXE4o38Tmy9qlb17Lif7LRXu0+PROcrc3ytxvdmwNUOJwfQhiGDkZiOYedFSst3Z25b0SBF/mn3J/8jfQh9mfhwn6BlAj4eclzeLBMdUkp9X2ug05hNTrTJPMExvVh1A75/v6nQAzysogBFahKH5boCruEtbTeiN9+cmtzQ72F3Jt63Uq6pb3YaGq8g6ftCTuHvNN85jtptiBWseGz9DMr663QlLXqP0VlBJ2kN3fckuyBep6Ls2RztbCP+Uc7IW0zesEYhwKd3z+OD68W+Jw5i4wJ0E55P9BtIDouxCH8QAOvqovYjhmfZ990mJQmDzPFXi4g++oWkkwcVIRcCjDLR0USSci1pVSj2/ijAXm9LCfMyKJLNLuOk8PIFy+AUzzBhjsKUo2DPaDn8y3w8S0BjOJk47cHo29TsxkdcBsFeCA+wT20T2vUU8eMMNWbW3qnZjhw+pXvrikIm+GFTumymC30F7ZfHnRQasv3/asvNwVdIC8vXKzIkdcGYBtfUrRgB"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01Sc4JZSFsStUZ2KBpBzzS3k",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-J-2047",
+     "compensation_chf": 45,
+     "delivery_day": 4,
+     "message": "Vielen Dank für Ihre Rückmeldung. Gerne bestätigen wir die Lieferung Ihrer Lampenschirme für Freitag statt Donnerstag. Die Entschädigung von CHF 45 erhalten Sie per PayPal Payout. Vielen Dank für Ihr Verständnis. Werkstatt Reuss",
+     "message_en": "Thank you for your reply. We are happy to confirm delivery of your lamp shades on Friday instead of Thursday. The compensation of CHF 45 will be paid via PayPal Payout. Thank you for your understanding. Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2315,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2315,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 596,
+   "output_tokens_details": {
+    "thinking_tokens": 239
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

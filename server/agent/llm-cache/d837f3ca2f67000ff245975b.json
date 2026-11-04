@@ -1,0 +1,54 @@
+{
+ "key": "d837f3ca2f67000ff245975b",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:28:50.160Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX62omysHBaW9xrrDGy",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSkAYKEAgTGAI4AUIIdGhpbmtpbmcSDIIb9YIGvDqj/6x0lxoM40vnMJjuIfhaFZxyIjBJUomG/nNjs7dKB66w25UNTpNK0+zaMP/e9Oky7MLvnxTzuellsMOW0Whahp9uye8qrQVlww1Kp5JcT+JPEsLi9doLRWoJmUoXnp5ebQtAztahhWOmZ9W8EAIAeVdD/w2hu50htuj+tN1oLye+vptL80JjfBRWTq5mA0OuAIHkT9bJg0jy7g5rMd/Lp4sCNBTY/jgpeL2wXi/zINK4hFqEeipxTylCxQcC8rgn/yVUmMbRUQ0BR4V79611rflK8uQ8xfyqRrMSVER0FtwqUHMX450DerVrcHByyqOid3Vek17MdkCzrtSnkwIM8JC4OH/3CpctuGn0pbOzBBOlqcrnyLd1oaYsEILkg49ma6cO7bSI1+LjxirogBqaWHPAkTUKMwHq0Z9FoL58xVkbxPNUTVbriokI+4IMFZvuwXU/nEFc/IQiZbx6lKEUU0tnCgF3jigbNJwoLuxuO+kdNeOJM2c7p/y3mf3r2UWqWk6ekNQCVaJZQd4YMww+M13AF8U+bz1Kci3hM7IXwLwMquk2Qskd64OA9ksMXTvh/x2iC2UHBayb4dfx/YJLeTMxk/ydWqPpHRSH0fFK0PpdXt9E2t88ogtnfvqwq6VvB6gPwEuPq4m027w9qypXFRScu8nbzauRNCeUPhWERQ8nWNVxIhjY2nh9uboyS06h17204UHNrJgxBfEpDkHifn7MiqqUriPkh9C6dGt1uYJOuwQwqjl+uCmkT1gM9uK5e+KNtYKRAHyuPW9PTcbyEzuqzYFGBo5xEEshy3nzwEhF9WEWU/TKIQvBy1Pld+LmCu2D63DFnnWuZ7lPv8b3ktzX+fts2dRwIntfeBCH6YesXnG9mgrq4hzIr3ll7cqQKrAXTcVA65MXUD/pclpansp6VINGr2LswLT70LBl5fbT7i7synG0qO/8TKoA8ZWqs6aDYxCwptNr2JrVpG1mIQRFU8RmWJq/PSJqdH3Gq8ZX3B72GAE="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01FrJ6GC4XXeDN9GwRFyoLDQ",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "compensation_chf": 70,
+     "delivery_day": 3,
+     "message": "Merci beaucoup pour votre accord, Monsieur Rochat. Nous confirmons la livraison de vos pièces J-2044 jeudi, à la fin de la journée, avec une compensation de CHF 70, débitée sous forme de capture réduite sur votre autorisation PayPal existante. Werkstatt Reuss",
+     "message_en": "Thank you very much for your agreement, Mr. Rochat. We confirm delivery of your parts J-2044 on Thursday, at the end of the day, with compensation of CHF 70, charged as a reduced capture on your existing PayPal authorization. Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2331,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2331,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 449,
+   "output_tokens_details": {
+    "thinking_tokens": 93
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

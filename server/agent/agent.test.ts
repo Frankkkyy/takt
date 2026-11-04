@@ -221,3 +221,54 @@ for (const label of ['DE email', 'FR email']) test(`Recorded ${label} path: offe
   assert.equal(rochat.compensationChf, 70);
   assert.equal(app.state.stage, 'awaiting-approval');
 });
+
+test('Claude board-move offer: emergency wording and a wrong amount are rejected by code, then the draft is used', async () => {
+  const seen: { text: string; isError: boolean }[] = [];
+  const fake = fakeClaude({
+    reply: (p, turn) => {
+      assert.match(String(p.system), /customer writer/);
+      if (turn > 0) seen.push(...lastResults(p));
+      const user = String(p.messages[0].content);
+      const amount = /amount: (CHF \d+)/.exec(user)![1];
+      const day = /new_day_label: (\w+)/.exec(user)![1];
+      if (turn === 0) return msg([use('draft_move_offer', { message: `Bonjour, un client a une urgence. Le ${day} au lieu du mardi ? ${amount} pour vous.`, message_en: `A customer has an emergency. ${amount}.` })]);
+      if (turn === 1) return msg([use('draft_move_offer', { message: `Bonjour, nous réorganisons nos machines. Le ${day} au lieu du mardi ? CHF 500 pour vous.`, message_en: 'CHF 500.' })]);
+      return msg([use('draft_move_offer', { message: `Bonjour Julien, nous réorganisons nos machines cette semaine. Le ${day} au lieu du mardi vous irait-il ? ${amount} de moins prélevés sur votre autorisation PayPal. Sinon, rien ne change.`, message_en: `Hi Julien, we are re-planning our machines this week. Would ${day} instead of Tuesday work? ${amount} less captured on your PayPal authorization. Otherwise nothing changes.` })]);
+    },
+  });
+  const app = appWith(claudeWith(fake));
+  const review = await app.reviewMove('J-2044', 2);
+  assert.equal(review.verdict, 'offer');
+  assert.deepEqual(seen.map((r) => r.isError), [true, true]);
+  assert.match(seen[0].text, /no emergency/);
+  assert.match(seen[1].text, /CHF 500/);
+  assert.equal(app.state.move!.draftedBy, 'llm');
+  assert.match(review.offer!.message, /réorganisons/);
+  assert.match(review.offer!.message, new RegExp(`CHF ${review.offer!.compensationChf}\\b`));
+});
+
+test('Board-move offer falls back to the rules template when Claude is unavailable', async () => {
+  const fake = fakeClaude({ reply: () => { throw new Error('529 overloaded'); } });
+  const app = appWith(claudeWith(fake));
+  const review = await app.reviewMove('J-2047', 1);
+  assert.equal(app.snapshot().agent.last, 'fallback');
+  assert.equal(app.state.move!.draftedBy, 'deterministic');
+  assert.match(review.offer!.message, /planen diese Woche unsere Maschinen um/);
+});
+
+test('Recorded board move: drag Rochat two days later, Claude draft and reply replay with zero live calls', async () => {
+  const { REPLY_SAMPLES } = await import('../../web/src/samples.js');
+  const { DEFAULT_CACHE_DIR } = await import('./llm.js');
+  const agent = new HybridAgent(new ClaudeAgent(new LlmClient({ model: 'claude-haiku-5-5', cacheDir: DEFAULT_CACHE_DIR, cacheMode: 'replay-only' })));
+  const app = appWith(agent);
+  const review = await app.reviewMove('J-2044', 2);
+  assert.equal(app.snapshot().agent.last, 'replay', 'board-move recording missing or stale (npm run agent:eval)');
+  assert.equal(app.state.move!.draftedBy, 'llm');
+  assert.equal(review.offer!.compensationChf, 70);
+  await app.sendMoveOffer();
+  await app.reply(app.state.move!.offer!.id, REPLY_SAMPLES.find((r) => r.label === 'Counter (FR)')!.text);
+  assert.equal(app.snapshot().agent.liveCalls, 0);
+  assert.equal(app.state.move!.stage, 'awaiting-approval');
+  await app.approveMove();
+  assert.equal(app.state.move!.stage, 'committed');
+});

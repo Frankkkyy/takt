@@ -1,0 +1,51 @@
+{
+ "key": "82f738d9e039c79d538c8fae",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:29:24.793Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX8Cw2xp9eyGnU3zka3",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "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"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01Kgr1EoHBETBoB1otMTM25f",
+    "name": "draft_move_offer",
+    "input": {
+     "message": "Bonjour M. Rochat, Werkstatt Reuss réorganise ses machines cette semaine. Pourriez-vous accepter que votre commande J-2044 (tables) passe du mardi au jeudi? Nous vous offrons CHF 70, prélevés sur votre autorisation PayPal existante lors de l'expédition. Si cette date ne vous convient pas, votre date de mardi reste inchangée.",
+     "message_en": "Hello Mr. Rochat, Werkstatt Reuss is re-planning its machines this week. Could you accept moving your order J-2044 (table frames) from Tuesday to Thursday? We offer you CHF 70, charged less from your existing PayPal authorization at shipment. If this date does not suit you, your Tuesday date simply stays."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 1249,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 1249,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 1262,
+   "output_tokens_details": {
+    "thinking_tokens": 933
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

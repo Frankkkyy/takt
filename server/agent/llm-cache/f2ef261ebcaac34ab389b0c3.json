@@ -1,0 +1,51 @@
+{
+ "key": "f2ef261ebcaac34ab389b0c3",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-04T20:29:30.709Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgiX8nxvVpxGNkquJobnn",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "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"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01Q9ZrJo93A4TVRsuGFFjvGX",
+    "name": "draft_move_offer",
+    "input": {
+     "message": "Grüezi Frau Meier\n\nWir planen diese Woche unsere Maschinen neu. Darum möchten wir Ihren Auftrag J-2047 (Lamp shades) von Mittwoch auf Donnerstag verschieben. Als Entschädigung erhalten Sie CHF 45 per PayPal-Auszahlung, da Sie bereits bezahlt haben. Passt Ihnen der neue Tag nicht, bleibt Ihr Termin einfach am Mittwoch.\n\nFreundliche Grüsse\nWerkstatt Reuss",
+     "message_en": "Hello Ms Meier, we are re-planning our machines this week. That is why we would like to move your order J-2047 (Lamp shades) from Wednesday to Thursday. As compensation you receive CHF 45 by PayPal payout, since you have already paid. If the new day does not suit you, your date simply stays on Wednesday. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 1232,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 1232,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 1291,
+   "output_tokens_details": {
+    "thinking_tokens": 900
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

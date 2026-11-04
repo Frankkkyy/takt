@@ -1,5 +1,5 @@
-// Agent eval: 17 cases over the real Claude agent (intake DE/FR/EN, plan, accept / decline / counter, over-cap,
-// prompt injection, question). Reports pass/fail and token cost, and writes docs/AGENT_EVAL.md.
+// Agent eval: 20 cases over the real Claude agent (intake DE/FR/EN, plan, accept / decline / counter, over-cap,
+// prompt injection, question, and the owner's board moves: offer drafts in FR/DE and a reply to a move offer). Reports pass/fail and token cost, and writes docs/AGENT_EVAL.md.
 //
 //   npm run agent:eval            replay recorded responses where they exist, call Claude for the rest, record them
 //   npm run agent:eval -- --live  delete all recordings first, so every distinct request goes to Claude exactly once
@@ -140,7 +140,28 @@ const cases: Case[] = [
     const ans = o.thread.at(-1);
     return { app, note: `${o.customerId}: ${o.status}; "${ans?.textEn ?? ''}"`, checks: [['still open', o.status === 'sent'], ['answered', ans?.from === 'shop'], ['mentions PayPal', /paypal/i.test(ans?.text ?? '')]] };
   } },
+  { id: 'move-draft-fr', what: 'Owner drags Rochat\'s job (J-2044) two days later → offer draft', run: async () => {
+    const app = new TaktApp(new MockPayPal(5), agent);
+    const r = await app.reviewMove('J-2044', 2);
+    const m = app.state.move!; const msg = r.offer?.message ?? '';
+    return { app, note: `${r.verdict}, CHF ${r.offer?.compensationChf}, ${relDayOf(r.toDay)}; "${r.offer?.messageEn ?? ''}"`, checks: [['needs consent', r.verdict === 'offer'], ['CHF 70 (code)', r.offer?.compensationChf === 70 && /CHF 70\b/.test(msg)], ['French, names jeudi', /jeudi/i.test(msg) && /vous/i.test(msg)], ['no emergency story', !/urgen|emergenc|rush/i.test(msg + (r.offer?.messageEn ?? ''))], ['mentions PayPal', /paypal/i.test(msg)], ['drafted by Claude', m.draftedBy === 'llm']] };
+  } },
+  { id: 'move-draft-de-payout', what: 'Owner drags Meier\'s prepaid job (J-2047) one day later → offer draft', run: async () => {
+    const app = new TaktApp(new MockPayPal(5), agent);
+    const r = await app.reviewMove('J-2047', 1);
+    const msg = r.offer?.message ?? '';
+    return { app, note: `${r.verdict}, CHF ${r.offer?.compensationChf} ${r.offer?.mechanism}; "${r.offer?.messageEn ?? ''}"`, checks: [['needs consent', r.verdict === 'offer'], ['payout (prepaid)', r.offer?.mechanism === 'payout'], ['CHF 45 (code)', /CHF 45\b/.test(msg)], ['German, formal, names Donnerstag', /Donnerstag/.test(msg) && /\bSie\b|Ihnen|Ihre/.test(msg)], ['no emergency story', !/notfall|dringend|urgen|emergenc|rush/i.test(msg + (r.offer?.messageEn ?? ''))], ['drafted by Claude', app.state.move!.draftedBy === 'llm']] };
+  } },
+  { id: 'move-reply-fr', what: `Board-move offer to Rochat, reply "${reply('Counter (FR)')}"`, run: async () => {
+    const app = new TaktApp(new MockPayPal(5), agent);
+    await app.reviewMove('J-2044', 2);
+    await app.sendMoveOffer();
+    const o = app.state.move!.offer!;
+    await app.reply(o.id, reply('Counter (FR)'));
+    return { app, note: `${o.status}, CHF ${o.compensationChf}, day ${o.toDay}; move ${app.state.move!.stage}; "${o.thread.at(-1)?.textEn ?? ''}"`, checks: [['accepted', o.status === 'accepted'], ['CHF 70', o.compensationChf === 70], ['Thursday (3)', o.toDay === 3], ['waits for the owner', app.state.move!.stage === 'awaiting-approval'], ['decided by Claude', o.decidedBy === 'llm']] };
+  } },
 ];
+const relDayOf = (d: number) => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][d % 5] + (d >= 5 ? ' (week 2)' : '');
 
 const rows: string[] = [];
 let passed = 0;

@@ -1,16 +1,16 @@
 {
  "key": "b2fac610e71ec6796e1db5a6",
  "model": "claude-haiku-5-5",
- "recordedAt": "2026-10-25T21:21:58.256Z",
+ "recordedAt": "2026-11-04T20:27:53.778Z",
  "response": {
   "model": "claude-haiku-5-5",
-  "id": "msg_011CgPf3wMQnrWCfn9jfVvZx",
+  "id": "msg_011CgiX1Wbj4v1zT3NPqm6Xc",
   "type": "message",
   "role": "assistant",
   "content": [
    {
     "type": "tool_use",
-    "id": "toolu_01JSYaMkjyEUxYrHWUQZDvxQ",
+    "id": "toolu_01LZ3TTfjEraSZ2xXUxhyrbp",
     "name": "record_rush_job",
     "input": {
      "customer_name": "Thomas Schmid",
@@ -23,7 +23,7 @@
      "material_grade": "S355",
      "thickness_mm": 8,
      "due_day": 1,
-     "notes": "Replacement for cracked harvester header brackets; customer refers to a photo (not available to intake); needed by Tuesday evening, harvest starts Wednesday."
+     "notes": "Replacement for cracked harvester header brackets; reference photo mentioned but not attached; needed by Tuesday evening before Wednesday harvest start."
     },
     "caller": {
      "type": "direct"
@@ -36,13 +36,13 @@
   "stop_details": null,
   "usage": {
    "input_tokens": 4,
-   "cache_creation_input_tokens": 0,
-   "cache_read_input_tokens": 1643,
+   "cache_creation_input_tokens": 1643,
+   "cache_read_input_tokens": 0,
    "cache_creation": {
-    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 1643,
     "ephemeral_1h_input_tokens": 0
    },
-   "output_tokens": 365,
+   "output_tokens": 362,
    "output_tokens_details": {
     "thinking_tokens": 0
    },
