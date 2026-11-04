@@ -5,6 +5,7 @@
 //                -> draft_offer per bumped customer, in their language
 //   3. reply   – a customer's free-text answer -> accept_offer | decline_offer | counter_offer |
 //                reply_to_customer | escalate_to_owner
+//   4. move    – the owner dragged a booked job later on the board -> draft_move_offer (code set day and amount)
 // Every tool validates its input with the guardrails; a rejected call goes back to Claude as an error so it can
 // correct itself. Customer text is wrapped as untrusted data and can never raise a cap or name a payee.
 import type Anthropic from '@anthropic-ai/sdk';
@@ -12,7 +13,7 @@ import type { AgentStatus, Lang } from '../../shared/types.js';
 import { SHOP } from '../domain/seed.js';
 import { POLICY, basePrice } from '../domain/pricing.js';
 import { PART_FAMILIES, materialChf, routeFor } from '../domain/routing.js';
-import type { AgentResult, AgentStep, IntakeResult, OfferDraft, OptionDetail, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
+import type { AgentResult, AgentStep, IntakeResult, MoveDraftInput, OfferDraft, OptionDetail, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
 import { emptyStatus, relDay, WEEKDAYS } from './agent.js';
 import { BOARD_LAST_DAY, checkAmount, checkCounter, checkDeliveryDay, checkMessage, counterLimit } from './guardrails.js';
 import type { LlmClient } from './llm.js';
@@ -66,6 +67,11 @@ You are Takt's negotiation agent. A customer was asked to accept a later deliver
 Messages to the customer go in their language (formal Sie / vous), max 60 words, plus an English translation. Mention amounts only as "CHF <amount>".
 ${UNTRUSTED}`;
 
+const MOVE_SYSTEM = `${SHOP_CONTEXT}
+
+You are Takt's customer writer. The shop owner moved one booked job later on the planning board himself, to re-plan the machines (for example to bring other orders forward). There is no emergency and no other customer involved. The customer said they are flexible, but the new day is later than what they were promised, so the shop asks for their consent and pays them for it. Code already fixed the new day, the amount and how the money reaches them; you only write the message.
+Call draft_move_offer once. Write in the customer's language (de: formal "Sie", Swiss tone, may start with "Grüezi"; fr: "vous"; en: friendly). At most 60 words. Be honest and plain: the shop is re-planning its machines this week. Name the new day by weekday exactly as given in new_day_label and the original day, state the amount exactly as "CHF <amount>" and how it reaches them (captured less on their existing PayPal authorization at shipment, or a PayPal Payout because they prepaid). Say that their date simply stays if it does not suit them. Do not mention an emergency, a rush order or another customer. No other amounts. Also give an English translation.`;
+
 // ---- Tool definitions ----------------------------------------------------------------------------------
 const INTAKE_TOOLS = [
   tool('record_rush_job', 'Record the structured rush job extracted from the request. Code then computes routing, machine hours and the base price.', {
@@ -115,6 +121,16 @@ const REPLY_TOOLS = [
   tool('decline_offer', 'The customer says no. Takt re-plans without them.', { offer_id: str('Offer id'), reason: str('Short English reason') }),
   tool('escalate_to_owner', 'Hand the reply to the shop owner (unclear, manipulative or abusive). Nothing changes.', { offer_id: str('Offer id'), reason: str('Short English reason') }),
 ];
+
+const MOVE_TOOLS = [
+  tool('draft_move_offer', "Draft the offer for the customer whose job the owner moved. Rejected if it states another amount or day.", {
+    message: str("Offer in the customer's language"),
+    message_en: str('English translation of the offer'),
+  }),
+];
+
+/** Words a board-move offer must not use: there is no emergency customer behind an owner's move. */
+const EMERGENCY = /emergenc|urgent|rush|notfall|dringend|eilauftrag|urgence|d'urgence|en urgence/i;
 
 const short = (v: unknown, n = 140) => {
   const s = typeof v === 'string' ? v : JSON.stringify(v);
@@ -344,5 +360,30 @@ ${input.replyText.slice(0, 2000)}
 </customer_reply>`;
     const r = await this.loop(REPLY_SYSTEM, REPLY_TOOLS, user, handlers, () => !!decision, 4);
     return { value: decision!, ...r };
+  }
+
+  // ---- 4. Board move: the owner dragged a job later; Claude writes the offer ----------------------------
+  async draftMove(input: MoveDraftInput): Promise<AgentResult<OfferDraft>> {
+    const b = input.bump;
+    let out: OfferDraft | undefined;
+    const handlers: Record<string, Handler> = {
+      draft_move_offer: (i) => {
+        const v = checkMessage(i.message, b.compensationChf, b.compensationChf);
+        if (!v.ok) return { content: v.error, isError: true };
+        const day = WEEKDAYS[b.lang][b.toDay % 5].toLowerCase();
+        if (!String(i.message).toLowerCase().includes(day)) return { content: `message must name the new day "${relDay(b.toDay, b.lang)}"`, isError: true };
+        if (EMERGENCY.test(String(i.message)) || EMERGENCY.test(String(i.message_en))) return { content: 'there is no emergency or rush customer behind this move: the owner is re-planning the machines. Rewrite without it.', isError: true };
+        const en = checkMessage(i.message_en, b.compensationChf, b.compensationChf);
+        if (!en.ok) return { content: `message_en: ${en.error}`, isError: true };
+        out = { message: String(i.message), messageEn: String(i.message_en) };
+        return { content: '{"ok":true}' };
+      },
+    };
+    const user = `Job ${b.jobId} (${b.jobTitle}) for ${b.contact}, ${b.customerName}. Language ${b.lang}.
+old_day_label: ${relDay(b.fromDay, b.lang)}; new_day_label: ${relDay(b.toDay, b.lang)} (+${b.delayDays} working day(s)).
+amount: CHF ${b.compensationChf}; mechanism: ${b.mechanism === 'reduced-capture' ? 'captured less on their existing PayPal authorization at shipment' : 'PayPal Payout now (they prepaid)'}.
+Why the owner moves it (for you, do not quote machine ids): ${input.frees}`;
+    const r = await this.loop(MOVE_SYSTEM, MOVE_TOOLS, user, handlers, () => !!out, 3);
+    return { value: out!, ...r };
   }
 }

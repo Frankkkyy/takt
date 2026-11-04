@@ -45,20 +45,124 @@ test('demo path: intake -> plan -> offers -> accept -> owner approves -> authori
   }
 });
 
-test('board drag review: firm customers refused, flexible ones get a capped offer, nothing moves', () => {
+test('board drag review: firm customers refused, flexible ones get a capped offer, nothing moves before approval', async () => {
   const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
   const before = JSON.stringify(app.snapshot().schedule);
-  const firm = app.reviewMove('J-2041', 1); // Keller: never move
+  const firm = await app.reviewMove('J-2041', 1); // Keller: never move
   assert.equal(firm.verdict, 'refused');
-  const flex = app.reviewMove('J-2044', 2); // Rochat: flexible up to 4 days, authorization
+  assert.ok(!app.snapshot().move);
+  const flex = await app.reviewMove('J-2044', 2); // Rochat: flexible up to 4 days, authorization
   assert.equal(flex.verdict, 'offer');
+  assert.equal(flex.toDay, 3);
   assert.equal(flex.offer?.mechanism, 'reduced-capture');
   assert.ok(flex.offer!.compensationChf <= flex.offer!.capChf);
   assert.match(flex.offer!.message, new RegExp(`CHF ${flex.offer!.compensationChf}\\b`));
-  assert.equal(app.reviewMove('J-2047', 1).offer?.mechanism, 'payout'); // Meier prepaid
-  assert.equal(app.reviewMove('J-2044', 9).verdict, 'refused'); // beyond stated flexibility
-  assert.equal(app.reviewMove('J-2044', -1).verdict, 'refused');
+  assert.doesNotMatch(flex.offer!.messageEn, /emergency|urgent|rush/i, 'a board move has its own text, not the rush template');
+  assert.equal(app.state.move?.stage, 'drafted');
+  assert.equal((await app.reviewMove('J-2047', 1)).offer?.mechanism, 'payout'); // Meier prepaid; replaces the unsent draft
+  assert.equal(app.state.move?.jobId, 'J-2047');
+  assert.equal((await app.reviewMove('J-2044', 9)).verdict, 'refused'); // beyond stated flexibility
+  assert.equal((await app.reviewMove('J-2044', -1)).verdict, 'refused');
   assert.equal(JSON.stringify(app.snapshot().schedule), before);
+  assert.ok(!app.state.ledger.some((l) => l.source === 'api'));
+});
+
+test('board move, capture less: offer → customer accepts → owner approves the checklist → schedule moves → ship captures less', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  const review = await app.reviewMove('J-2044', 2);
+  const chf = review.offer!.compensationChf;
+  await app.sendMoveOffer();
+  const m = app.state.move!;
+  assert.equal(m.stage, 'offer-sent');
+  assert.equal(m.offer!.status, 'sent');
+  await assert.rejects(() => app.intake(REQUEST), /board move/); // the rush flow waits for the open move
+  await app.respond(m.offer!.id, true);
+  assert.equal(m.stage, 'awaiting-approval');
+  assert.equal(m.approval!.checks.length, 5);
+  assert.ok(m.approval!.checks.every((c) => c.ok));
+  assert.equal(m.approval!.moves[0].kind, 'capture-less');
+  assert.ok(!app.state.ledger.some((l) => l.source === 'api'), 'no PayPal call before the owner approves');
+  assert.equal(app.state.schedule.timing['J-2044'].deliveryDay, 1, 'schedule unchanged before approval');
+  await app.approveMove();
+  assert.equal(m.stage, 'committed');
+  const j = app.state.jobs.find((x) => x.id === 'J-2044')!;
+  assert.equal(app.state.schedule.timing['J-2044'].deliveryDay, 3);
+  assert.equal(j.dueDay, 3);
+  assert.equal(j.compensationChf, chf);
+  assert.ok(Object.values(app.state.schedule.timing).every((t) => !t.late), 'nobody late after the move');
+  assert.equal(app.state.yield.compensationsChf, chf);
+  await app.ship('J-2044');
+  const cap = app.state.ledger.find((l) => l.title === 'Captured J-2044')!;
+  assert.equal(cap.amountChf, 2680 - chf);
+});
+
+test('board move, payout: a prepaid customer is paid by PayPal Payout when the owner approves', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  await app.reviewMove('J-2047', 1);
+  await app.sendMoveOffer();
+  const o = app.state.move!.offer!;
+  await app.reply(o.id, 'Ja, passt für uns. Danke für die Nachfrage!');
+  assert.equal(o.status, 'accepted');
+  assert.equal(app.state.move!.approval!.moves[0].kind, 'payout');
+  await app.approveMove();
+  await app.approveMove().catch(() => undefined); // a second click pays nothing more
+  assert.equal(app.state.ledger.filter((l) => l.title === 'Payout to Studio Meier Licht').length, 1);
+  assert.equal(app.state.move!.stage, 'committed');
+  assert.ok(app.state.jobs.find((j) => j.id === 'J-2047')!.paypal!.some((s) => s.idKind === 'payout-batch'));
+});
+
+test('board move: decline keeps the date, discard and guardrails change nothing', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  const before = JSON.stringify(app.state.schedule);
+  await app.reviewMove('J-2044', 1);
+  await app.sendMoveOffer();
+  await app.respond(app.state.move!.offer!.id, false);
+  assert.equal(app.state.move!.stage, 'declined');
+  assert.equal(JSON.stringify(app.state.schedule), before);
+  await app.reviewMove('J-2045', 1);
+  app.discardMove();
+  assert.equal(app.state.move!.stage, 'discarded');
+  await app.reviewMove('J-2044', 2);
+  await app.sendMoveOffer();
+  await app.respond(app.state.move!.offer!.id, true);
+  app.state.move!.offer!.compensationChf = 9999; // tampering after acceptance
+  await assert.rejects(() => app.approveMove(), /Guardrail/);
+  assert.equal(JSON.stringify(app.state.schedule), before);
+  assert.ok(!app.state.ledger.some((l) => l.source === 'api'));
+});
+
+test('board move: a counter within the limits is agreed; a move that fits the promise just applies', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  await app.reviewMove('J-2044', 2); // Thursday, CHF 70
+  await app.sendMoveOffer();
+  const o = app.state.move!.offer!;
+  await app.reply(o.id, "D'accord, mais plutôt vendredi et CHF 90.");
+  assert.equal(o.status, 'accepted');
+  assert.equal(o.compensationChf, 90);
+  assert.equal(o.toDay, 4);
+  await app.approveMove();
+  assert.equal(app.state.jobs.find((j) => j.id === 'J-2044')!.dueDay, 4);
+  const fits = await app.reviewMove('J-2049', 1); // Brunner, one day of slack
+  assert.equal(fits.verdict, 'fits');
+  await app.approveMove();
+  assert.equal(app.state.move!.stage, 'committed');
+  assert.equal(app.state.yield.compensationsChf, 90);
+  assert.ok(Object.values(app.state.schedule.timing).every((t) => !t.late));
+});
+
+test('board move is blocked while a rush proposal is open, and the rush still works after a committed move', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  await app.intake(REQUEST);
+  await app.plan();
+  await assert.rejects(() => app.reviewMove('J-2044', 2), /rush proposal/);
+  app.reset();
+  await app.reviewMove('J-2047', 1);
+  await app.sendMoveOffer();
+  await app.respond(app.state.move!.offer!.id, true);
+  await app.approveMove();
+  const plan = await toCommitted(app);
+  assert.ok(plan.feasible);
+  assert.ok(Object.values(app.state.schedule.timing).every((t) => !t.late));
 });
 
 test('free-text counter-offer within the cap is agreed and changes the capture amount', async () => {

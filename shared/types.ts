@@ -204,7 +204,7 @@ export interface Plan {
   chosenBy: 'llm' | 'deterministic';
 }
 
-/** The owner dragged a booked job on the board: what the agent says about it (read-only, nothing moves or pays). */
+/** The owner dragged a booked job on the board: what Takt says about it. Code decides the slot and the price. */
 export interface MoveReview {
   jobId: string;
   customerName: string;
@@ -212,10 +212,31 @@ export interface MoveReview {
   fromDay: number;
   toDay: number;
   dueDay: number;
+  /** fits: still within the promise (owner can apply it, no money); offer: needs the customer's consent. */
   verdict: 'fits' | 'offer' | 'refused';
   /** Owner-facing explanation (English). */
   reason: string;
+  /** What the move frees for other work (owner-facing, code). */
+  frees?: string;
   offer?: { compensationChf: number; capChf: number; mechanism: BumpOffer['mechanism']; lang: Lang; message: string; messageEn: string };
+}
+
+/**
+ * A board move the owner wants: it runs the same path as the agent's proposals. Draft (Claude writes the offer) →
+ * owner sends it → the customer answers (the agent negotiates within the cap) → owner approves the money move with
+ * the guardrail checklist → PayPal (capture less at shipment, or a payout) → the schedule changes.
+ */
+export interface MoveProposal {
+  id: string;
+  jobId: string;
+  review: MoveReview;
+  /** Undefined when the move fits the promise (no consent or money needed). */
+  offer?: BumpOffer;
+  stage: 'drafted' | 'offer-sent' | 'awaiting-approval' | 'committed' | 'declined' | 'discarded';
+  /** The schedule with the move applied (ghost on the board until it commits). */
+  proposed: Schedule;
+  draftedBy?: 'llm' | 'deterministic';
+  approval?: { moves: MoneyMove[]; checks: GuardrailCheck[]; status: 'pending' | 'approved'; doneMoveIds?: string[] };
 }
 
 export type PayPalEventType =
@@ -268,6 +289,8 @@ export interface DemoState {
   ledger: LedgerEvent[];
   yield: { premiumsChf: number; compensationsChf: number; netChf: number; rushJobsWon: number };
   approval?: { moves: MoneyMove[]; checks: GuardrailCheck[]; status: 'pending' | 'approved'; doneMoveIds?: string[] };
+  /** The owner's board move, if one is open or just finished. */
+  move?: MoveProposal;
   modes: { paypal: 'mock' | 'sandbox'; agent: 'deterministic' | 'llm'; currency: string };
   agent: AgentStatus;
 }

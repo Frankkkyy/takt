@@ -178,3 +178,25 @@ test('mock mode exposes no public webhook endpoint (no fake PayPal events)', asy
     await s.close();
   }
 });
+
+test('board move over HTTP: review → send → customer accepts → approve, scoped to the session', async () => {
+  const srv = await start(new DeterministicAgent());
+  try {
+    const a = client(srv.base);
+    const b = client(srv.base);
+    const r = await a.post('/api/jobs/J-2044/review-move', { delayDays: 2 });
+    assert.equal(r.ok, true);
+    assert.equal(r.state.move?.stage, 'drafted');
+    assert.equal((await b.state()).move, undefined, 'another browser does not see the move');
+    assert.equal((await a.post('/api/move/approve')).ok, false, 'nothing to approve before the customer agrees');
+    await a.post('/api/move/send');
+    const offerId = (await a.state()).move!.offer!.id;
+    await a.post(`/api/offers/${offerId}/respond`, { accept: true });
+    const ok = await a.post('/api/move/approve');
+    assert.equal(ok.ok, true);
+    assert.equal(ok.state.move?.stage, 'committed');
+    assert.equal(ok.state.schedule.timing['J-2044'].deliveryDay, 3);
+  } finally {
+    await srv.close();
+  }
+});

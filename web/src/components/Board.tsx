@@ -3,7 +3,9 @@
 //  - the axis shows working time only (Mon–Fri 07:00–15:00), one week by default;
 //  - a partnered ResourceHistogram under the board shows how booked each machine is (laser + press brake at 100 %);
 //  - the agent's proposal appears as ghost events (dashed) with a badge per bumped job;
-//  - when PayPal confirms, the real events move into the accepted plan (Scheduler Pro event animations).
+//  - when PayPal confirms, the real events move into the accepted plan (Scheduler Pro event animations);
+//  - the owner can drag a booked job later: Takt reviews the move, and if the customer must agree it becomes a
+//    proposal (ghost) that runs the same offer → owner approval → PayPal path before the bar really moves.
 // Takt's own deterministic scheduler stays the source of truth; the board mirrors /api/state every second.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BryntumResourceHistogram, BryntumSchedulerPro } from '@bryntum/schedulerpro-react';
@@ -12,7 +14,7 @@ import '@bryntum/schedulerpro/schedulerpro.css';
 import '@bryntum/schedulerpro/svalbard-light.css';
 import '@bryntum/schedulerpro/fontawesome/css/fontawesome.css';
 import '@bryntum/schedulerpro/fontawesome/css/solid.css';
-import { BOARD_DAYS, HOURS_PER_DAY, type DemoState, type Job, type MoveReview, type Schedule } from '../../../shared/types';
+import { BOARD_DAYS, HOURS_PER_DAY, type BumpOffer, type DemoState, type Job, type MoveReview, type Schedule } from '../../../shared/types';
 import { chf, dayDate, dayShort, post } from '../api';
 
 const DAY_START_HOUR = 7;
@@ -21,6 +23,7 @@ const HISTO_ROW = 30;
 interface Props {
   state: DemoState;
   showProposal: boolean;
+  onState: (s: DemoState) => void;
 }
 
 /** One bar on the board (real or ghost), already in Bryntum's terms. */
@@ -92,9 +95,18 @@ function payLineOf(j: Job | undefined): { line: string; ids: string[] } {
   return { line, ids };
 }
 
-function buildEvents(state: DemoState, proposal: Schedule | undefined): BoardEvent[] {
+/** What the board shows as ghosts: the rush plan, or the owner's open board move. */
+interface Proposal {
+  schedule: Schedule;
+  bumped: string[];
+  offers: BumpOffer[];
+  kind: 'rush' | 'move';
+}
+
+function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[] {
   const plan = state.plan;
-  const bumped = new Set(plan?.bumpedJobIds ?? []);
+  const proposal = prop?.schedule;
+  const bumped = new Set(prop?.bumped ?? []);
   const jobById = new Map(state.jobs.map((j) => [j.id, j]));
   const custName = (id: string) => state.customers.find((c) => c.id === id)?.name ?? (id === 'rush' ? state.rush?.customer.name ?? 'Rush' : id);
   const out: BoardEvent[] = [];
@@ -130,12 +142,13 @@ function buildEvents(state: DemoState, proposal: Schedule | undefined): BoardEve
     });
   }
 
-  if (proposal && plan) {
+  if (proposal && prop) {
     for (const g of proposal.ops) {
       const isRush = g.jobId.startsWith('RUSH-');
       if (!isRush && !bumped.has(g.jobId)) continue;
+      if (isRush && !plan) continue;
       const j = jobById.get(g.jobId);
-      const offer = plan.offers.find((x) => x.jobId === g.jobId);
+      const offer = prop.offers.find((x) => x.jobId === g.jobId);
       const mech = offer?.mechanism === 'payout' ? 'payout' : 'capture less';
       const info: EventInfo = isRush
         ? {
@@ -147,7 +160,7 @@ function buildEvents(state: DemoState, proposal: Schedule | undefined): BoardEve
             due: dayShort(iso, state.rush?.dueDay ?? 0),
             late: false,
             payState: 'rush',
-            payLine: `Rush premium ${chf(plan.rushPremiumChf)} · PayPal hold ${chf(plan.rushPriceChf)} on approval`,
+            payLine: `Rush premium ${chf(plan!.rushPremiumChf)} · PayPal hold ${chf(plan!.rushPriceChf)} on approval`,
             ids: state.rushOrder ? [`order ${state.rushOrder.orderId}`] : [],
             ghost: 'rush',
             badge: 'RUSH',
@@ -161,10 +174,10 @@ function buildEvents(state: DemoState, proposal: Schedule | undefined): BoardEve
             due: offer ? dayShort(iso, offer.toDay) : '',
             late: false,
             payState: payStateOf(j, false),
-            payLine: offer ? `Offer: ${chf(offer.compensationChf)} via ${mech} · ${offer.status}` : 'Proposed slot',
+            payLine: offer ? `${prop.kind === 'move' ? 'Board move · ' : ''}Offer: ${chf(offer.compensationChf)} via ${mech} · ${offer.status}` : prop.kind === 'move' ? 'Board move: within the promised date' : 'Proposed slot',
             ids: [],
             ghost: 'bump',
-            badge: offer ? `+${offer.delayDays} d · ${chf(offer.compensationChf)}${offer.status === 'accepted' ? ' ✓' : ''}` : 'proposed',
+            badge: offer ? `+${offer.delayDays} d · ${chf(offer.compensationChf)}${offer.status === 'accepted' ? ' ✓' : ''}` : prop.kind === 'move' ? 'move' : 'proposed',
           };
       // The rush ghost keeps the id the committed rush job will get, so it turns solid in place.
       const id = isRush ? `${boardKey(g.jobId)}|${g.machineId}` : `ghost|${boardKey(g.jobId)}|${g.machineId}`;
@@ -238,10 +251,9 @@ function viewRange(boardStartIso: string, days: number) {
   return { start, end };
 }
 
-export function Board({ state, showProposal }: Props) {
+export function Board({ state, showProposal, onState }: Props) {
   const [days, setDays] = useState(5);
-  const [review, setReview] = useState<MoveReview | { error: string } | null>(null);
-  const [showEn, setShowEn] = useState(false);
+  const [review, setReview] = useState<MoveReview | { error: string } | { pending: string } | null>(null);
   const schedulerRef = useRef<BryntumSchedulerPro>(null);
   const histogramRef = useRef<BryntumResourceHistogram>(null);
 
@@ -265,11 +277,27 @@ export function Board({ state, showProposal }: Props) {
   );
 
   const plan = state.plan;
-  const proposal = showProposal && plan?.feasible ? plan.proposed : undefined;
-  const events = useMemo(() => buildEvents(state, proposal), [state, proposal]);
+  const move = state.move;
+  const moveOpen = !!move && ['drafted', 'offer-sent', 'awaiting-approval'].includes(move.stage);
+  const rushProposal = showProposal && plan?.feasible ? plan.proposed : undefined;
+  const prop: Proposal | undefined = rushProposal
+    ? { schedule: rushProposal, bumped: plan!.bumpedJobIds, offers: plan!.offers, kind: 'rush' }
+    : moveOpen
+      ? { schedule: move!.proposed, bumped: [move!.jobId], offers: move!.offer ? [move!.offer] : [], kind: 'move' }
+      : undefined;
+  const proposal = prop?.schedule;
+  const events = useMemo(() => buildEvents(state, prop), [state, prop?.schedule, prop?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
   // Bryntum binds listeners once; read the latest values through refs.
-  const live = useRef({ proposal, iso: state.boardStartIso });
-  live.current = { proposal, iso: state.boardStartIso };
+  // The review note belongs to an open move: once it is sent on, committed, declined or discarded, drop it.
+  const moveKey = moveOpen ? `${move!.id}|${move!.stage}` : '';
+  useEffect(() => {
+    setReview((r) => (r && !('error' in r) && !('pending' in r) && r.verdict !== 'refused' && moveKey.split('|')[1] !== 'drafted' ? null : r));
+  }, [moveKey]);
+
+  // A drafted (unsent) board move may be replaced by a new drag; a sent one or a rush proposal locks the board.
+  const locked = !!rushProposal || (moveOpen && move!.stage !== 'drafted');
+  const live = useRef({ locked, iso: state.boardStartIso });
+  live.current = { locked, iso: state.boardStartIso };
   const sig = JSON.stringify(events) + JSON.stringify(state.machines);
 
   // Mirror the server state into the Bryntum stores with minimal changes, so moves animate instead of re-rendering.
@@ -357,27 +385,24 @@ export function Board({ state, showProposal }: Props) {
           <span><i className="sw pay-prepaid" /> prepaid</span>
           <span><i className="sw pay-compensated" /> compensated</span>
           <span><i className="sw pay-rush" /> rush</span>
-          {!proposal && <span className="hint">Drag a booked job later: Takt reviews the move</span>}
-          {proposal && <span><i className="sw ghost-rush-sw" /> proposed rush slot</span>}
-          {proposal && <span><i className="sw ghost-bump-sw" /> proposed new slot (needs consent)</span>}
+          {!locked && <span className="hint">Drag a booked job later: Takt reviews the move</span>}
+          {prop?.kind === 'rush' && <span><i className="sw ghost-rush-sw" /> proposed rush slot</span>}
+          {proposal && <span><i className="sw ghost-bump-sw" /> proposed new slot ({prop?.kind === 'move' && !move?.offer ? 'board move' : 'needs consent'})</span>}
         </div>
       </div>
       {review && (
-        <div className={`move-review ${'error' in review ? 'refused' : review.verdict}`} role="status" aria-live="polite">
+        <div className={`move-review ${'error' in review ? 'refused' : 'pending' in review ? 'offer' : review.verdict}`} role="status" aria-live="polite">
           <button className="close" aria-label="Dismiss" onClick={() => setReview(null)}>×</button>
           {'error' in review ? (
             <p>{review.error}</p>
+          ) : 'pending' in review ? (
+            <p>Takt is reviewing the move of {review.pending}…</p>
           ) : (
             <>
-              <small>Board move · {review.jobId} {review.customerName} · +{review.delayDays} d · what-if, nothing moved · code checks dates and caps</small>
-              <b>{review.verdict === 'offer' ? 'Breaks the promised date: offer compensation?' : review.verdict === 'fits' ? 'Fits the promise' : 'Takt will not move this job'}</b>
+              <small>Board move · {review.jobId} {review.customerName} · +{review.toDay - review.fromDay} d · code checks dates, other promises and caps</small>
+              <b>{review.verdict === 'offer' ? 'Breaks the promised date: the customer must agree' : review.verdict === 'fits' ? 'Fits the promise' : 'Takt will not move this job'}</b>
               <p>{review.reason}</p>
-              {review.offer && (
-                <blockquote>
-                  <span className="lang">{review.offer.lang.toUpperCase()}</span> {showEn ? review.offer.messageEn : review.offer.message}
-                  {review.offer.lang !== 'en' && <button className="linkish" onClick={() => setShowEn((v) => !v)}>{showEn ? 'Original' : 'Show English'}</button>}
-                </blockquote>
-              )}
+              {review.verdict !== 'refused' && <p className="small muted">The dashed bar shows the new slot. {review.verdict === 'offer' ? 'Send the offer from the panel on the right; nothing moves or pays before the customer agrees and you approve.' : 'Apply it from the panel on the right.'}</p>}
             </>
           )}
         </div>
@@ -416,17 +441,18 @@ export function Board({ state, showProposal }: Props) {
           enableDeleteKey={false}
           onBeforeEventDrag={({ eventRecord }) => {
             const i = info(eventRecord as unknown as { get: (f: string) => unknown });
-            return !!i && !i.ghost && i.payState !== 'rush' && !live.current.proposal;
+            return !!i && !i.ghost && i.payState !== 'rush' && !live.current.locked;
           }}
           onBeforeEventDropFinalize={({ context }) => {
             const i = info(context.eventRecord as unknown as { get: (f: string) => unknown });
             const iso = live.current.iso;
             const delay = workDayIndex(iso, context.startDate) - workDayIndex(iso, context.eventRecord.startDate as Date);
-            context.valid = false; // snap back: the review is a what-if
+            // Snap back: the bar only really moves once the customer agreed and the owner approved (Flow panel).
+            context.valid = false;
             if (!i || delay === 0) return;
-            setShowEn(false);
+            setReview({ pending: i.jobId });
             post<MoveReview>(`/api/jobs/${encodeURIComponent(i.jobId)}/review-move`, { delayDays: delay })
-              .then((r) => setReview(r.result))
+              .then((r) => { setReview(r.result); onState(r.state); })
               .catch((e: Error) => setReview({ error: e.message }));
           }}
           columns={[

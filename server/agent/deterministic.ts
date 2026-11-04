@@ -3,7 +3,7 @@
 import type { AgentStatus, Lang } from '../../shared/types.js';
 import { basePrice } from '../domain/pricing.js';
 import { materialChf, routeFor } from '../domain/routing.js';
-import type { AgentResult, BumpDetail, IntakeResult, OfferDraft, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
+import type { AgentResult, BumpDetail, IntakeResult, MoveDraftInput, OfferDraft, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
 import { dayLabel, emptyStatus, NeedsClarification, WEEKDAYS } from './agent.js';
 import { checkCounter, checkDeliveryDay, chfAmounts, concessionStep, counterLimit } from './guardrails.js';
 
@@ -74,6 +74,10 @@ export class DeterministicAgent implements RushAgent {
   async reply(input: ReplyInput): Promise<AgentResult<ReplyDecision>> {
     return this.done(parseReply(input), 'Rules parsed the reply', 'Keyword parsing (no LLM)');
   }
+
+  async draftMove(input: MoveDraftInput): Promise<AgentResult<OfferDraft>> {
+    return this.done(templateMoveOffer(input.bump, input.boardStart), `Template offer for ${input.bump.customerName}`, 'Board move: DE/FR/EN template (no LLM)');
+  }
 }
 
 /**
@@ -138,6 +142,34 @@ export function templateOffer(b: BumpDetail, boardStart: Date, chf = b.compensat
     en: `Hi ${first}, a customer has an emergency repair and needs our laser on short notice. Could we deliver your ${b.jobTitle.toLowerCase()} (${b.jobId}) on ${to('en')} instead of ${from('en')}? As a thank-you we take ${amount} off. ${how.en}`,
     de: `Grüezi ${b.contact}, ein Kunde hat einen dringenden Notfall und braucht kurzfristig unseren Laser. Dürften wir Ihre Bestellung ${b.jobId} (${b.jobTitle}) am ${to('de')} statt am ${from('de')} liefern? Als Dankeschön erhalten Sie ${amount}. ${how.de}`,
     fr: `Bonjour ${b.contact}, un client a une réparation urgente et a besoin de notre laser rapidement. Pourrions-nous livrer votre commande ${b.jobId} (${b.jobTitle}) le ${to('fr')} au lieu du ${from('fr')} ? Pour vous remercier, nous vous offrons ${amount}. ${how.fr}`,
+  };
+  return { message: body[b.lang], messageEn: body.en };
+}
+
+/**
+ * Board move (the owner re-plans the machines himself, there is no emergency customer): a different text from the
+ * rush offer. Same rule: it states exactly the approved amount and day.
+ */
+export function templateMoveOffer(b: BumpDetail, boardStart: Date): OfferDraft {
+  const from = (l: Lang) => dayLabel(boardStart, b.fromDay, l);
+  const to = (l: Lang) => dayLabel(boardStart, b.toDay, l);
+  const amount = `CHF ${b.compensationChf}`;
+  const first = b.contact.split(' ')[0];
+  const how: Record<Lang, string> = b.mechanism === 'reduced-capture'
+    ? {
+        en: `we capture ${amount} less on your PayPal authorization when we ship`,
+        de: `wir belasten Ihre PayPal-Autorisierung beim Versand um ${amount} weniger`,
+        fr: `nous prélevons ${amount} de moins sur votre autorisation PayPal à l'expédition`,
+      }
+    : {
+        en: `we send ${amount} to your PayPal account as soon as you agree`,
+        de: `wir überweisen Ihnen ${amount} per PayPal, sobald Sie zustimmen`,
+        fr: `nous vous versons ${amount} par PayPal dès votre accord`,
+      };
+  const body: Record<Lang, string> = {
+    en: `Hi ${first}, we are re-planning our machines this week. Would ${to('en')} instead of ${from('en')} work for your ${b.jobTitle.toLowerCase()} (${b.jobId})? If it does, ${how.en}. If not, your date simply stays.`,
+    de: `Grüezi ${b.contact}, wir planen diese Woche unsere Maschinen um. Wäre für Ihre Bestellung ${b.jobId} (${b.jobTitle}) der ${to('de')} statt der ${from('de')} in Ordnung? Falls ja, ${how.de}. Falls nicht, bleibt Ihr Termin einfach bestehen.`,
+    fr: `Bonjour ${b.contact}, nous réorganisons nos machines cette semaine. Le ${to('fr')} au lieu du ${from('fr')} vous conviendrait-il pour votre commande ${b.jobId} (${b.jobTitle}) ? Si oui, ${how.fr}. Sinon, votre date reste simplement la même.`,
   };
   return { message: body[b.lang], messageEn: body.en };
 }

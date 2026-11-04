@@ -92,7 +92,7 @@ export function OfferCard({ offer, state, onState, standalone = false }: { offer
 }
 
 export function OfferPage({ id, state, onState }: { id: string; state: DemoState; onState: (s: DemoState) => void }) {
-  const offer = state.plan?.offers.find((o) => o.id === id) ?? state.pastOffers?.find((o) => o.id === id);
+  const offer = state.plan?.offers.find((o) => o.id === id) ?? (state.move?.offer?.id === id ? state.move.offer : undefined) ?? state.pastOffers?.find((o) => o.id === id);
   if (!offer) return <div className="center muted">This offer is no longer open. Open it from the same browser as the owner console (each browser runs its own demo).</div>;
   return <div className="center offer-page"><OfferCard offer={offer} state={state} onState={onState} standalone /></div>;
 }

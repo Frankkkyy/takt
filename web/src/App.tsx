@@ -65,6 +65,7 @@ const TOOL_TITLES: Record<string, string> = {
   reply_to_customer: 'Agent answered the customer',
   decline_offer: 'Agent: customer declines',
   escalate_to_owner: 'Agent escalated to the owner',
+  draft_move_offer: 'Agent drafted the board-move offer',
 };
 
 function LogItem({ e }: { e: LedgerEvent }) {
@@ -120,7 +121,7 @@ export function App() {
   if (hash === '#/pay') return <RushPayPage state={state} onState={setState} />;
 
   const showProposal = ['planned', 'offers-sent', 'awaiting-approval', 'awaiting-payment'].includes(state.stage);
-  const coldOpen = state.stage === 'idle' && !state.rush && !state.intakeQuestion;
+  const coldOpen = state.stage === 'idle' && !state.rush && !state.intakeQuestion && !state.move;
   const a = state.agent;
   const left = a.liveLeft;
   return (
@@ -137,7 +138,7 @@ export function App() {
         <div className="yield">
           <div><small>Rush premiums</small><b>{chf(state.yield.premiumsChf)}</b></div>
           <div><small>Compensations</small><b>−{chf(state.yield.compensationsChf)}</b></div>
-          <div className="net"><small>Net uplift</small><b>+{chf(state.yield.netChf)}</b></div>
+          <div className="net"><small>Net uplift</small><b>{state.yield.netChf < 0 ? '−' : '+'}{chf(Math.abs(state.yield.netChf))}</b></div>
         </div>
         <div className="modes">
           <span className={`badge ${state.modes.paypal}`}>PayPal: {state.modes.paypal}</span>
@@ -154,7 +155,7 @@ export function App() {
       <main className="main">
         <section className="left">
           <Suspense fallback={<div className="board board-loading muted">Loading the board…</div>}>
-            <Board state={state} showProposal={showProposal} />
+            <Board state={state} showProposal={showProposal} onState={setState} />
           </Suspense>
           <div className="ledger">
             <h3>PayPal &amp; agent log</h3>

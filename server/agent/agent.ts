@@ -103,6 +103,14 @@ export interface ReplyDecision {
   reason: string;
 }
 
+/** A board move the owner made: the agent writes the customer's offer (code already set the day and amount). */
+export interface MoveDraftInput {
+  bump: BumpDetail;
+  /** Owner-facing summary of what the move frees (code), e.g. "4 h on the laser on Tuesday". */
+  frees: string;
+  boardStart: Date;
+}
+
 export interface AgentStep {
   kind: 'tool' | 'guardrail' | 'note';
   title: string;
@@ -122,6 +130,7 @@ export interface RushAgent {
   intake(text: string, boardStart: Date): Promise<AgentResult<IntakeResult>>;
   plan(input: PlanInput): Promise<AgentResult<PlanDecision>>;
   reply(input: ReplyInput): Promise<AgentResult<ReplyDecision>>;
+  draftMove(input: MoveDraftInput): Promise<AgentResult<OfferDraft>>;
   status(): AgentStatus;
 }
 

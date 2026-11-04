@@ -1,15 +1,15 @@
 // Takt application service: in-memory demo state + the rush / bump / settle flow.
 // One TaktApp = one demo shop. The HTTP layer keeps one per browser session (server/sessions.ts).
 import { randomBytes } from 'node:crypto';
-import type { AgentStatus, BumpOffer, Customer, DemoState, Job, LedgerEvent, MoneyMove, MoveReview, PayPalStep, Plan, PlanOptionView, RushRequest } from '../shared/types.js';
+import type { AgentStatus, BumpOffer, Customer, DemoState, GuardrailCheck, Job, LedgerEvent, MoneyMove, MoveProposal, MoveReview, PayPalStep, Plan, PlanOptionView, RushRequest, Schedule } from '../shared/types.js';
 import { buildSeedJobs, customers as seedCustomers, machines, SHOP } from './domain/seed.js';
 import { schedule } from './domain/scheduler.js';
 import { planRush, rushToJob, type PlanCandidate, type PlanResult } from './domain/planner.js';
-import { compensation, compensationBudget, perJobCap } from './domain/pricing.js';
-import type { AgentResult, AgentStep, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
+import { compensation, compensationBudget, perJobCap, POLICY } from './domain/pricing.js';
+import type { AgentResult, AgentStep, BumpDetail, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
 import { dayLabel, emptyStatus, NeedsClarification, relDay } from './agent/agent.js';
-import { templateOffer } from './agent/deterministic.js';
-import { approvalChecks, checkAmount, checkCounter, checkDeliveryDay, checkMessage, offerCeiling } from './agent/guardrails.js';
+import { templateMoveOffer, templateOffer } from './agent/deterministic.js';
+import { approvalChecks, BOARD_LAST_DAY, checkAmount, checkCounter, checkDeliveryDay, checkMessage, offerCeiling } from './agent/guardrails.js';
 import type { PayPalGateway } from './paypal/gateway.js';
 import type { PayPalWebhookEvent } from './paypal/gateway.js';
 
@@ -93,6 +93,7 @@ export class TaktApp {
     this.ownIds.clear();
     this.inflight.clear();
     this.pending = undefined;
+    this.pendingMove = undefined;
     this.checkout = undefined;
     this.state = {
       boardStartIso: `${this.boardStart.getFullYear()}-${String(this.boardStart.getMonth() + 1).padStart(2, '0')}-${String(this.boardStart.getDate()).padStart(2, '0')}`,
@@ -187,41 +188,243 @@ export class TaktApp {
   }
   private cust(id: string) { return this.state.customers.find((c) => c.id === id); }
 
-  // ---- Board: the owner drags a job, the agent reviews the move ---------------------------------------
+  // ---- Board: the owner drags a job later; it runs the same path as the agent's proposals --------------
+  /** Room left under a job's cap (12 % of its price), counting compensation it already got from an earlier bump. */
+  private capLeft(job: Job) {
+    return Math.max(0, perJobCap(job) - (job.compensationChf ?? 0));
+  }
+
   /**
-   * What-if for a job dragged `delayDays` working days later on the board. Read-only: the schedule, the promise and
-   * PayPal stay untouched. Code decides feasibility and price (firm customers, stated flexibility, per-job cap); the
-   * offer text uses the same multilingual template as the rules agent, so it never states another amount.
+   * Code, not AI: where does the job land if it gives up its place in the dispatch order? Tries every later
+   * position, keeps those where every other promise still holds, and picks the latest delivery up to the dragged
+   * day (ties: the smallest change). Returns undefined when no later slot keeps every other promise.
    */
-  reviewMove(jobId: string, delayDays: number): MoveReview {
+  private moveSlot(jobId: string, targetDay: number) {
+    const booked = this.state.jobs.filter((j) => j.status === 'booked').sort((a, b) => a.seq - b.seq);
+    const i = booked.findIndex((j) => j.id === jobId);
+    const fromDay = this.state.schedule.timing[jobId].deliveryDay;
+    const rest = booked.filter((j) => j.id !== jobId);
+    let best: { order: Job[]; sim: Schedule; day: number } | undefined;
+    for (let k = i + 1; k <= rest.length; k++) {
+      const order = [...rest.slice(0, k), booked[i], ...rest.slice(k)].map((j, n) => ({ ...j, seq: (n + 1) * 10 }));
+      const sim = schedule(order);
+      const day = sim.timing[jobId].deliveryDay;
+      if (day <= fromDay || day > targetDay || day > BOARD_LAST_DAY) continue;
+      if (Object.values(sim.timing).some((t) => t.jobId !== jobId && t.late)) continue;
+      if (!best || day > best.day) best = { order, sim, day };
+    }
+    return best;
+  }
+
+  /** Owner-facing: which hours the move frees and who ships earlier because of it (relative days, no dates). */
+  private freedBy(job: Job, sim: Schedule) {
+    const names: Record<string, string> = { LAS1: 'laser', PB1: 'press brake', MILL1: '5-axis mill', MILL2: '3-axis mill' };
+    const before = this.state.schedule;
+    const firstDay = Math.floor(Math.min(...before.ops.filter((o) => o.jobId === job.id).map((o) => o.start)) / 8);
+    const hours = job.ops.map((o) => `${o.hours} h on the ${names[o.machineId] ?? o.machineId}`).join(' and ');
+    const earlier = Object.values(sim.timing).filter((t) => t.jobId !== job.id && before.timing[t.jobId] && t.end < before.timing[t.jobId].end - 0.01);
+    const who = [...new Set(earlier.map((t) => this.cust(this.state.jobs.find((j) => j.id === t.jobId)!.customerId)?.name ?? t.jobId))];
+    return `frees ${hours} from ${relDay(firstDay, 'en')}; ${earlier.length ? `${earlier.length} job(s) finish earlier (${who.slice(0, 3).join(', ')})` : 'no other job changes'}`;
+  }
+
+  private moveOpen() {
+    const m = this.state.move;
+    return !!m && ['drafted', 'offer-sent', 'awaiting-approval'].includes(m.stage);
+  }
+
+  /**
+   * The owner dragged a booked job `delayDays` working days later. Code decides whether that is allowed (firm
+   * customers, stated flexibility, other promises), the slot and the price (per-job cap). If the customer must
+   * agree, Claude drafts the offer in their language and the move becomes a proposal: the owner sends it, the
+   * customer answers, the owner approves the money move, PayPal settles, then the schedule changes.
+   */
+  async reviewMove(jobId: string, delayDays: number): Promise<MoveReview> {
     const job = this.state.jobs.find((j) => j.id === jobId && j.status === 'booked');
     if (!job || job.rush) throw new Error(`No booked job ${jobId} that can be moved`);
+    // A draft nobody has seen yet is simply replaced by the new drag; a sent offer must be finished first.
+    if (this.moveOpen() && this.state.move!.stage !== 'drafted') throw new Error('Finish or discard the open board move first');
+    if (['planned', 'offers-sent', 'awaiting-approval', 'awaiting-payment'].includes(this.state.stage)) throw new Error('A rush proposal is open: finish it before moving jobs by hand');
     const c = this.cust(job.customerId);
     if (!c) throw new Error(`Unknown customer for ${jobId}`);
     const days = Math.round(delayDays);
     const fromDay = this.state.schedule.timing[job.id]?.deliveryDay ?? job.dueDay;
-    const toDay = fromDay + days;
-    const base = { jobId, customerName: c.name, delayDays: days, fromDay, toDay, dueDay: job.dueDay };
+    const wanted = fromDay + days;
+    const base = { jobId, customerName: c.name, delayDays: days, fromDay, toDay: wanted, dueDay: job.dueDay };
     const day = (d: number) => dayLabel(this.boardStart, d, 'en');
-    let review: MoveReview;
-    if (days <= 0) {
-      review = { ...base, verdict: 'refused', reason: `Takt only moves work later: pulling ${jobId} forward would need its material and a free machine earlier.` };
-    } else if (toDay <= job.dueDay) {
-      review = { ...base, verdict: 'fits', reason: `${c.name} still gets ${jobId} by ${day(job.dueDay)} as promised (new delivery ${day(toDay)}). No offer needed.` };
-    } else if (!c.flexible) {
-      review = { ...base, verdict: 'refused', reason: `${c.name} is a firm promise (${c.note.replace(/\.$/, '')}). Moving ${jobId} to ${day(toDay)} would break their date, so Takt won't ask.` };
-    } else if (toDay - job.dueDay > c.maxDelayDays) {
-      review = { ...base, verdict: 'refused', reason: `${c.name} said they can wait at most ${c.maxDelayDays} working day(s); ${day(toDay)} is ${toDay - job.dueDay} day(s) late.` };
-    } else {
-      const late = toDay - job.dueDay;
-      const chf = compensation(job, c, late);
-      const mechanism: BumpOffer['mechanism'] = job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout';
-      const draft = templateOffer({ jobId, jobTitle: job.title, customerId: c.id, customerName: c.name, contact: c.contact, lang: c.lang, fromDay: job.dueDay, toDay, delayDays: late, compensationChf: chf, mechanism, capChf: perJobCap(job) }, this.boardStart);
-      const how = mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout (prepaid)';
-      review = { ...base, verdict: 'offer', reason: `Moving ${jobId} to ${day(toDay)} breaks ${c.name}'s date (${day(job.dueDay)}) by ${late} day(s). Offer CHF ${chf} via ${how}? Cap CHF ${perJobCap(job)}.`, offer: { compensationChf: chf, capChf: perJobCap(job), mechanism, lang: c.lang, message: draft.message, messageEn: draft.messageEn } };
+    const done = (review: MoveReview) => {
+      this.log('agent', `Board move reviewed: ${jobId} +${review.toDay - fromDay} d`, `${review.verdict === 'offer' ? 'Needs consent' : review.verdict === 'fits' ? 'Fits' : 'Refused'}: ${review.reason}`, undefined, review.offer?.compensationChf);
+      return review;
+    };
+    if (days <= 0) return done({ ...base, verdict: 'refused', reason: `Takt only moves work later: pulling ${jobId} forward would need its material and a free machine earlier.` });
+    if (!c.flexible && wanted > job.dueDay) return done({ ...base, verdict: 'refused', reason: `${c.name} is a firm promise (${c.note.replace(/\.$/, '')}). Moving ${jobId} to ${day(wanted)} would break their date, so Takt won't ask.` });
+    if (wanted - job.dueDay > c.maxDelayDays) return done({ ...base, verdict: 'refused', reason: `${c.name} said they can wait at most ${c.maxDelayDays} working day(s); ${day(wanted)} is ${wanted - job.dueDay} day(s) late.` });
+    const slot = this.moveSlot(jobId, wanted);
+    if (!slot) return done({ ...base, verdict: 'refused', reason: `No later slot for ${jobId} up to ${day(wanted)} keeps every other promise on these machines.` });
+    const toDay = slot.day;
+    const frees = this.freedBy(job, slot.sim);
+    const near = toDay < wanted ? ` The nearest slot that keeps every other promise ends ${day(toDay)}.` : '';
+    const proposal = (review: MoveReview, offer?: BumpOffer, draftedBy?: MoveProposal['draftedBy']): MoveProposal => ({
+      id: `MOVE-${jobId}-${Date.now().toString(36)}`, jobId, review, offer, draftedBy, stage: 'drafted', proposed: slot.sim,
+    });
+    this.pendingMove = slot.order;
+    if (toDay <= job.dueDay) {
+      const review: MoveReview = { ...base, toDay, verdict: 'fits', frees, reason: `${c.name} still gets ${jobId} by ${day(job.dueDay)} as promised (new delivery ${day(toDay)}). No offer and no money needed: the move ${frees}.${near}` };
+      this.state.move = proposal(review);
+      return done(review);
     }
-    this.log('agent', `Board move reviewed: ${jobId} +${days} d`, `${review.verdict === 'offer' ? 'Would offer' : review.verdict === 'fits' ? 'Fits' : 'Refused'}: ${review.reason} (what-if, nothing moved)`, undefined, review.offer?.compensationChf);
-    return review;
+    const late = toDay - job.dueDay;
+    const cap = this.capLeft(job);
+    if (cap <= 0) return done({ ...base, toDay, verdict: 'refused', reason: `${jobId} already got compensation up to its cap (CHF ${perJobCap(job)}); Takt won't ask ${c.name} again.` });
+    const chf = Math.min(compensation(job, c, late), cap);
+    const mechanism: BumpOffer['mechanism'] = job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout';
+    const bump: BumpDetail = { jobId, jobTitle: job.title, customerId: c.id, customerName: c.name, contact: c.contact, lang: c.lang, fromDay: job.dueDay, toDay, delayDays: late, compensationChf: chf, mechanism, capChf: cap };
+    const res = await this.agent.draftMove({ bump, frees, boardStart: this.boardStart });
+    this.track(res);
+    this.logSteps(res.steps);
+    let draft = res.value;
+    const ok = draft && checkMessage(draft.message, chf, chf).ok && checkMessage(draft.messageEn, chf, chf).ok;
+    if (!ok) {
+      draft = templateMoveOffer(bump, this.boardStart);
+      this.log('guardrail', `Template offer for ${c.name}`, 'No valid agent draft for this move, so the DE/FR/EN template is used');
+    }
+    const how = mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout (prepaid)';
+    const by = ok && (res.source === 'live' || res.source === 'replay') ? 'llm' : 'deterministic';
+    const review: MoveReview = {
+      ...base, toDay, verdict: 'offer', frees,
+      reason: `Moving ${jobId} to ${day(toDay)} breaks ${c.name}'s date (${day(job.dueDay)}) by ${late} day(s). It ${frees}. Offer CHF ${chf} via ${how}; cap CHF ${cap}.${near}`,
+      offer: { compensationChf: chf, capChf: cap, mechanism, lang: c.lang, message: draft.message, messageEn: draft.messageEn },
+    };
+    const now = new Date().toISOString();
+    const offer: BumpOffer = {
+      id: `OF-MOVE-${jobId}`, jobId, customerId: c.id, fromDay: job.dueDay, toDay, delayDays: late, compensationChf: chf, openingChf: chf, mechanism, lang: c.lang,
+      message: draft.message, messageEn: draft.messageEn, status: 'draft', capChf: cap, thread: [{ from: 'shop', text: draft.message, textEn: draft.messageEn, at: now }],
+    };
+    this.state.move = proposal(review, offer, by);
+    return done(review);
+  }
+
+  /** Dispatch order of the open move (code). Kept server-side, like the rush plan's pending order. */
+  private pendingMove?: Job[];
+
+  private openMove(stage: MoveProposal['stage'][]) {
+    const m = this.state.move;
+    if (!m || !stage.includes(m.stage)) throw new Error('No board move waiting for this step');
+    return m;
+  }
+
+  /** Owner: send the drafted offer to the customer (or, if the move fits the promise, just apply it). */
+  async sendMoveOffer() {
+    const m = this.openMove(['drafted']);
+    if (!m.offer) return this.approveMove();
+    m.offer.status = 'sent';
+    m.stage = 'offer-sent';
+    this.log('owner', 'Board move: offer sent', `${this.cust(m.offer.customerId)!.name} (${m.offer.lang.toUpperCase()}): +${m.offer.delayDays} d for CHF ${m.offer.compensationChf}`);
+    return m;
+  }
+
+  discardMove() {
+    const m = this.openMove(['drafted', 'offer-sent', 'awaiting-approval']);
+    m.stage = 'discarded';
+    if (m.offer && m.offer.status !== 'accepted') m.offer.status = 'declined';
+    this.pendingMove = undefined;
+    this.log('owner', 'Board move discarded', `${m.jobId}: nothing changed, nothing paid`);
+    return m;
+  }
+
+  /** The five checks shown next to "Approve & send to PayPal" for a board move (re-run at approval). */
+  private moveChecks(m: MoveProposal): GuardrailCheck[] {
+    const o = m.offer!;
+    const job = this.state.jobs.find((j) => j.id === m.jobId)!;
+    const c = this.cust(job.customerId)!;
+    const cap = this.capLeft(job);
+    const sim = this.pendingMove ? schedule(this.pendingMove) : undefined;
+    const others = !!sim && Object.values(sim.timing).every((t) => t.jobId === job.id || !t.late);
+    return [
+      { label: `${c.name} accepted the move (${o.status === 'accepted' ? 1 : 0}/1)`, ok: o.status === 'accepted' },
+      { label: `Compensation CHF ${o.compensationChf} within the job cap CHF ${cap} (${Math.round(POLICY.compCapShare * 100)} % of job price, minus earlier compensation)`, ok: o.compensationChf <= cap },
+      { label: `New date within what ${c.name} said they can wait (${o.toDay - job.dueDay} of ${c.maxDelayDays} day(s))`, ok: c.flexible && o.toDay - job.dueDay <= c.maxDelayDays && o.toDay >= (sim?.timing[job.id]?.deliveryDay ?? 99) },
+      { label: 'Every other promise still holds (planner re-check)', ok: others },
+      { label: 'Payee comes from the booking record, never from message text', ok: true },
+    ];
+  }
+
+  private moveAccepted(m: MoveProposal) {
+    const o = m.offer!;
+    const c = this.cust(o.customerId)!;
+    const job = this.state.jobs.find((j) => j.id === o.jobId)!;
+    const auth = job.payment.kind === 'authorization' ? job.payment.authorizedChf : 0;
+    const move: MoneyMove = o.mechanism === 'payout'
+      ? { id: `MV-${o.id}`, kind: 'payout', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v1/payments/payouts', detail: `Now, to the PayPal account on file for ${c.name} (prepaid ${job.id})` }
+      : { id: `MV-${o.id}`, kind: 'capture-less', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v2/payments/authorizations/{id}/capture', detail: `At shipment of ${job.id}: capture CHF ${auth - (job.compensationChf ?? 0) - o.compensationChf} of CHF ${auth}, final_capture=true` };
+    m.stage = 'awaiting-approval';
+    m.approval = { moves: [move], checks: this.moveChecks(m), status: 'pending' };
+    this.log('guardrail', 'Board move waiting for owner approval', `1 money move; ${m.approval.checks.filter((x) => x.ok).length}/${m.approval.checks.length} checks pass. Nothing reaches PayPal before the owner approves.`);
+  }
+
+  async approveMove() {
+    return this.once('approve-move', () => this.doApproveMove());
+  }
+
+  private async doApproveMove() {
+    const m = this.state.move;
+    if (!m) throw new Error('No board move to approve');
+    if (!m.offer) {
+      // Fits the promise: no consent and no money needed; the owner's click applies it.
+      if (m.stage !== 'drafted') throw new Error('Nothing to approve');
+      this.log('owner', 'Owner applied the board move', `${m.jobId}: within the promised date, no money moves`);
+      this.commitMove(m);
+      return m;
+    }
+    const a = m.approval;
+    if (m.stage !== 'awaiting-approval' || !a || a.status !== 'pending') throw new Error('Nothing to approve');
+    a.checks = this.moveChecks(m);
+    const failed = a.checks.filter((x) => !x.ok);
+    if (failed.length) {
+      this.log('guardrail', 'Board move approval blocked', failed.map((x) => x.label).join('; '));
+      throw new Error(`Guardrail: ${failed[0].label}`);
+    }
+    a.status = 'approved';
+    const o = m.offer;
+    const c = this.cust(o.customerId)!;
+    const job = this.state.jobs.find((j) => j.id === o.jobId)!;
+    this.log('owner', 'Owner approved the board move', `${job.id} → ${relDay(o.toDay, 'en')}, compensation CHF ${o.compensationChf}`);
+    try {
+      if (o.mechanism === 'payout') {
+        const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
+        const res = await this.paypal.createPayout(`takt-${this.runId}-${m.id}`, 'Thank you for moving your delivery', [
+          { receiverEmail, amount: this.money(o.compensationChf), note: `Takt: thank you for moving ${job.id}`, senderItemId: o.id },
+        ]);
+        this.ownIds.add(res.payoutBatchId);
+        this.step(job.paypal, { label: `Board move: compensation sent by PayPal Payout to ${c.name}`, status: res.batchStatus, id: res.payoutBatchId, idKind: 'payout-batch', api: 'POST /v1/payments/payouts', amountChf: o.compensationChf, source: 'call' });
+        this.log('api', `Payout to ${c.name}`, `Board move: POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
+      } else if (job.payment.kind === 'authorization') {
+        await this.ensureRealAuthorization(job);
+        this.step(job.paypal, { label: `Board move agreed: capture CHF ${o.compensationChf} less at shipment`, status: 'CREATED', id: job.payment.authorizationId, idKind: 'authorization', amountChf: o.compensationChf, source: 'call' });
+        this.log('agent', `Capture-less booked for ${c.name}`, `Board move: will capture CHF ${job.payment.authorizedChf - (job.compensationChf ?? 0) - o.compensationChf} instead of ${job.payment.authorizedChf - (job.compensationChf ?? 0)} on ${job.payment.authorizationId} at shipment`, job.payment.authorizationId, o.compensationChf);
+      }
+    } catch (e) {
+      a.status = 'pending';
+      this.log('system', 'PayPal call failed during board-move approval', `${e instanceof Error ? e.message : String(e)}. Nothing changed; press Approve again to retry`);
+      throw e;
+    }
+    job.compensationChf = (job.compensationChf ?? 0) + o.compensationChf;
+    this.state.yield.compensationsChf += o.compensationChf;
+    this.state.yield.netChf -= o.compensationChf;
+    this.commitMove(m);
+    return m;
+  }
+
+  private commitMove(m: MoveProposal) {
+    const order = this.pendingMove;
+    if (!order) throw new Error('Board move expired');
+    const seqById = new Map(order.map((j) => [j.id, j.seq]));
+    for (const j of this.state.jobs) j.seq = seqById.get(j.id) ?? j.seq;
+    const job = this.state.jobs.find((j) => j.id === m.jobId)!;
+    if (m.offer) job.dueDay = m.offer.toDay; // new promised date, agreed by the customer
+    this.state.schedule = schedule(this.state.jobs);
+    this.pendingMove = undefined;
+    m.stage = 'committed';
+    this.log('system', 'Board move committed', `${job.id} now ships ${relDay(this.state.schedule.timing[job.id].deliveryDay, 'en')}; ${m.review.frees ?? ''}`, undefined, m.offer?.compensationChf);
   }
 
   private logSteps(steps: AgentStep[]) {
@@ -236,6 +439,7 @@ export class TaktApp {
   // ---- 1. Intake -----------------------------------------------------------------------------------
   async intake(text: string) {
     if (!text?.trim()) throw new Error('Empty request');
+    if (this.moveOpen()) throw new Error('Finish or discard the open board move first');
     let res: AgentResult<Awaited<ReturnType<RushAgent['intake']>>['value']>;
     try {
       res = await this.agent.intake(text.slice(0, 3000), this.boardStart);
@@ -297,7 +501,7 @@ export class TaktApp {
         return {
           jobId: b.jobId, jobTitle: job.title, customerId: c.id, customerName: c.name, contact: c.contact, lang: c.lang,
           fromDay: b.fromDay, toDay: b.toDay, delayDays: b.delayDays, compensationChf: b.compensationChf,
-          mechanism: job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout', capChf: perJobCap(job),
+          mechanism: job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout', capChf: this.capLeft(job),
         };
       }),
     };
@@ -306,6 +510,7 @@ export class TaktApp {
   async plan(excludeCustomerIds: string[] = []) {
     const rush = this.state.rush;
     if (!rush) throw new Error('No rush request');
+    if (this.moveOpen()) throw new Error('Finish or discard the open board move first');
     const candidates = new Map<string, { cand: PlanCandidate; detail: OptionDetail }>();
     let run = 0;
     let last: PlanResult | undefined;
@@ -402,10 +607,15 @@ export class TaktApp {
 
   // ---- 3. Customer answers --------------------------------------------------------------------------
   private offerCtx(offerId: string) {
+    const m = this.state.move;
+    if (m?.offer?.id === offerId) {
+      const o = m.offer;
+      return { p: undefined, m, o, c: this.cust(o.customerId)!, job: this.state.jobs.find((j) => j.id === o.jobId)! };
+    }
     const p = this.state.plan;
     const o = p?.offers.find((x) => x.id === offerId);
     if (!p || !o) throw new Error('Offer not found');
-    return { p, o, c: this.cust(o.customerId)!, job: this.state.jobs.find((j) => j.id === o.jobId)! };
+    return { p, m: undefined, o, c: this.cust(o.customerId)!, job: this.state.jobs.find((j) => j.id === o.jobId)! };
   }
 
   private recomputeTotals() {
@@ -430,7 +640,8 @@ export class TaktApp {
     if (o.status !== 'sent') throw new Error('This offer is already closed');
     const t = String(text ?? '').trim().slice(0, 2000);
     if (!t) throw new Error('Empty reply');
-    const ceiling = offerCeiling(p, o, perJobCap(job));
+    // Board move: no rush budget behind it, so the ceiling is what is left under the job's own cap.
+    const ceiling = p ? offerCeiling(p, o, this.capLeft(job)) : Math.min(o.capChf, this.capLeft(job));
     const res = await this.agent.reply({ offer: o, customer: c, job, ceilingChf: ceiling, replyText: t, boardStart: this.boardStart });
     this.track(res);
     o.thread.push({ from: 'customer', text: t, at: new Date().toISOString() });
@@ -485,7 +696,7 @@ export class TaktApp {
         this.log('guardrail', `Escalated to owner: ${c.name}`, `${via}: ${d.reason}. Nothing was changed.`);
         break;
     }
-    if (this.state.plan) this.recomputeTotals();
+    if (p && this.state.plan) this.recomputeTotals();
     return { decision: d, source: res.source };
   }
 
@@ -494,16 +705,29 @@ export class TaktApp {
     o.status = 'accepted';
     o.respondedAt = new Date().toISOString();
     o.escalation = undefined;
+    const m = this.state.move;
+    if (m?.offer === o) {
+      this.log('agent', `${c.name} accepted the board move`, `${via}: +${o.delayDays} day(s) for CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
+      this.moveAccepted(m);
+      return;
+    }
     this.recomputeTotals();
     this.log('agent', `${c.name} accepted`, `${via}: +${o.delayDays} day(s) for CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
     this.maybeRequestApproval();
   }
 
   private async declineOffer(o: BumpOffer, why: string) {
-    const p = this.state.plan!;
     const c = this.cust(o.customerId)!;
     o.status = 'declined';
     o.respondedAt = new Date().toISOString();
+    const m = this.state.move;
+    if (m?.offer === o) {
+      m.stage = 'declined';
+      this.pendingMove = undefined;
+      this.log('agent', `${c.name} declined the board move`, `${why}. Their date stays; nothing changed, nothing paid`);
+      return;
+    }
+    const p = this.state.plan!;
     this.log('agent', `${c.name} declined`, `${why}. Re-planning without them`);
     this.state.pastOffers = [...(this.state.pastOffers ?? []).filter((x) => x.id !== o.id), o];
     const old = p.offers;
@@ -522,7 +746,10 @@ export class TaktApp {
 
   // ---- 3b. Owner approval: the only door to money moves --------------------------------------------------
   private caps() {
-    return Object.fromEntries(this.state.jobs.map((j) => [j.id, perJobCap(j)]));
+    // Room left under each job's cap; a retried approval adds back what this plan already booked on that job.
+    const done = new Set(this.state.approval?.doneMoveIds ?? []);
+    const back = new Map((this.state.plan?.offers ?? []).filter((o) => done.has(`MV-${o.id}`)).map((o) => [o.jobId, o.compensationChf]));
+    return Object.fromEntries(this.state.jobs.map((j) => [j.id, this.capLeft(j) + (back.get(j.id) ?? 0)]));
   }
 
   private maybeRequestApproval() {
@@ -580,7 +807,6 @@ export class TaktApp {
       if (done.has(moveId)) continue;
       const c = this.cust(o.customerId)!;
       const job = this.state.jobs.find((j) => j.id === o.jobId)!;
-      job.compensationChf = o.compensationChf;
       if (o.mechanism === 'payout') {
         // Payee from the booking record (or the sandbox test account), never from a message.
         const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
@@ -594,8 +820,10 @@ export class TaktApp {
       } else if (job.payment.kind === 'authorization') {
         await this.ensureRealAuthorization(job);
         this.step(job.paypal, { label: `Agreed: capture CHF ${o.compensationChf} less at shipment`, status: 'CREATED', id: job.payment.authorizationId, idKind: 'authorization', amountChf: o.compensationChf, source: 'call' });
-        this.log('agent', `Capture-less booked for ${c.name}`, `Will capture CHF ${job.payment.authorizedChf - o.compensationChf} instead of ${job.payment.authorizedChf} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
+        this.log('agent', `Capture-less booked for ${c.name}`, `Will capture CHF ${job.payment.authorizedChf - (job.compensationChf ?? 0) - o.compensationChf} instead of ${job.payment.authorizedChf - (job.compensationChf ?? 0)} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
       }
+      // Added, not replaced: a job moved on the board earlier keeps that compensation too.
+      job.compensationChf = (job.compensationChf ?? 0) + o.compensationChf;
       done.add(moveId);
     }
     await this.openRushCheckout();

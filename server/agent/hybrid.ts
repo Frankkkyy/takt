@@ -1,7 +1,7 @@
 // Claude first, rules as the safety net. Any API error, rate limit, spend ceiling, refusal, or an agent run that
 // does not finish falls back to the deterministic agent for that step; the UI badge shows which one ran.
 import type { AgentStatus } from '../../shared/types.js';
-import type { AgentResult, IntakeResult, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
+import type { AgentResult, IntakeResult, MoveDraftInput, OfferDraft, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
 import { ClaudeAgent } from './claude.js';
 import { DeterministicAgent } from './deterministic.js';
 import { DEFAULT_CACHE_DIR, LlmClient, type CacheMode } from './llm.js';
@@ -42,6 +42,9 @@ export class HybridAgent implements RushAgent {
   }
   reply(input: ReplyInput) {
     return this.run<ReplyDecision>(() => this.claude.reply(input), () => this.fallback.reply(input));
+  }
+  draftMove(input: MoveDraftInput) {
+    return this.run<OfferDraft>(() => this.claude.draftMove(input), () => this.fallback.draftMove(input));
   }
 }
 
