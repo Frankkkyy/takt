@@ -87,7 +87,8 @@ for (let run = 1; run <= runs; run++) {
   check(`${tag}Bryntum board renders ops as events and the histogram shows a fully booked machine`, (await board.locator('.b-sch-event').count()) >= 20 && full >= 1, `${full} machine(s) ≥ 95 %`);
   if (run === 1) await board.screenshot({ path: `${out}/b1-board-booked.png` });
   if (run === 1) {
-    // Two-way board: drag Rochat's bend two days later -> Takt reviews the move (what-if) and the bar snaps back.
+    // Two-way board: drag Rochat's bend two days later -> Takt reviews the move, Claude drafts the offer, and the move
+    // runs the normal path: owner sends the offer -> customer accepts -> owner approves the checklist -> PayPal.
     const bar = board.locator('[data-event-id="J-2044|PB1"]').first();
     const r = (await bar.boundingBox())!;
     const dayPx = (await board.locator('.b-time-axis-sub-grid').first().boundingBox())!.width / 5;
@@ -95,12 +96,43 @@ for (let run = 1; run <= runs; run++) {
     await page.mouse.down();
     for (let i = 1; i <= 10; i++) await page.mouse.move(r.x + 15 + (dayPx * 2 * i) / 10, r.y + r.height / 2);
     await page.mouse.up();
-    await board.locator('.move-review').waitFor({ timeout: 5000 });
+    await board.locator('.move-review.offer b').waitFor({ timeout: 45_000 });
+    await page.locator('#move-send').waitFor({ timeout: 10_000 });
+    await page.mouse.move(5, 5); // no hover tooltip in the shots
+    await page.waitForTimeout(1500);
     const text = await board.locator('.move-review').innerText();
     const back = (await bar.boundingBox())!;
-    check('dragging a flexible job later: Takt offers capped compensation, bar snaps back', /offer compensation/i.test(text) && /CHF \d+/.test(text) && Math.abs(back.x - r.x) < 3, text.split('\n')[2]?.slice(0, 120));
+    const ghost = await board.locator('.takt-ev.ghost').count();
+    check('dragging a flexible job later: capped offer, ghost slot, bar stays until approved', /customer must agree/i.test(text) && /CHF \d+/.test(text) && Math.abs(back.x - r.x) < 3 && ghost >= 2, text.split('\n')[2]?.slice(0, 120));
+    const draft = await page.locator('.move-card .why').innerText();
+    const drafted = await page.locator('.move-card .agent-tag').innerText();
+    check('board-move offer drafted by Claude (recorded), own wording, in French', /Claude/.test(drafted) && /CHF 70/.test(draft) && /jeudi/i.test(draft) && !/urgen|emergency/i.test(draft), `${drafted}: ${draft.split('\n')[1]?.slice(0, 90)}`);
     await board.screenshot({ path: `${out}/b4-board-drag-review.png` });
-    await board.locator('.move-review .close').click();
+    await shot('b5-move-offer-draft');
+    await page.locator('#move-send').click();
+    const phone = page.locator('.move-card .phone');
+    await phone.getByRole('button', { name: /^Accepter/ }).click();
+    await page.locator('#move-approve').waitFor({ timeout: 10_000 });
+    const checks = await page.locator('.move-card .checks li.ok').count();
+    check('customer accepted; owner sees the money move and 5 guardrail checks', checks === 5, `${checks}/5 checks`);
+    await page.locator('.move-card').screenshot({ path: `${out}/b6-move-approval.png` });
+    await page.locator('#move-approve').click();
+    await page.locator('.move-card[data-move-stage="committed"]').waitFor({ timeout: sandbox ? 60_000 : 10_000 });
+    await page.waitForTimeout(1200);
+    const moved = (await bar.boundingBox())!;
+    check('after approval the bar really moves on the board', moved.x - r.x > dayPx * 1.5, `${Math.round(moved.x - r.x)} px`);
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(1000);
+    await board.screenshot({ path: `${out}/b7-board-move-committed.png` });
+    const mrow = page.locator('.move-card .settle .offer-row', { hasText: 'J-2044' });
+    await mrow.getByRole('button', { name: 'Ship' }).click();
+    await mrow.locator('.good').waitFor({ timeout: sandbox ? 30_000 : 5000 }).catch(() => {});
+    check('Ship after the board move captures CHF 70 less', /captured CHF 2.610 of CHF 2.680/.test((await mrow.innerText()).replace(/\s+/g, ' ')));
+    await shot('b7b-move-committed');
+    // Back to the main story on a fresh shop.
+    await page.getByRole('button', { name: 'Reset demo' }).click();
+    await page.locator('.story .mail-toast').waitFor({ timeout: 10_000 });
+    await page.waitForTimeout(5200);
   }
   await page.getByRole('button', { name: 'Open request' }).click();
   if (sample) await page.getByRole('button', { name: sample, exact: true }).click();
