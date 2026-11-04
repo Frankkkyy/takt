@@ -44,7 +44,9 @@ interface SeedJob {
 
 // Dispatch order = array order. Laser and press brake are the bottleneck the rush job needs.
 const seedJobs: SeedJob[] = [
+  { id: 'J-2038', customerId: 'vuilleumier', title: 'Tray covers (cut last week)', material: 'Inox 1.4301 2 mm', qty: 24, ops: [op('PB1', 3, 'bend')], releaseDay: 0, slackDays: 0, priceChf: 980, payment: 'authorization' },
   { id: 'J-2041', customerId: 'keller', title: 'Motor brackets', material: 'S355 8 mm', qty: 40, ops: [op('LAS1', 3, 'cut'), op('PB1', 4, 'bend')], releaseDay: 0, slackDays: 0, priceChf: 3480, payment: 'authorization' },
+  { id: 'J-2039', customerId: 'gasser', title: 'Shelf rails (cut last week)', material: 'Inox 1.4301 1.5 mm', qty: 36, ops: [op('PB1', 3, 'bend')], releaseDay: 0, slackDays: 1, priceChf: 860, payment: 'authorization' },
   { id: 'J-2042', customerId: 'brunner', title: 'Dropout plates', material: 'Ti Gr5 4 mm', qty: 60, ops: [op('LAS1', 3, 'cut'), op('MILL2', 5, 'mill')], releaseDay: 0, slackDays: 0, priceChf: 2150, payment: 'authorization' },
   { id: 'J-2043', customerId: 'vuilleumier', title: 'Case fixtures', material: 'Alu 7075', qty: 12, ops: [op('MILL1', 14, '5-axis')], releaseDay: 0, slackDays: 1, priceChf: 4200, payment: 'authorization' },
   { id: 'J-2044', customerId: 'rochat', title: 'Table frames', material: 'S235 3 mm', qty: 8, ops: [op('LAS1', 4, 'cut'), op('PB1', 5, 'bend')], releaseDay: 0, slackDays: 0, priceChf: 2680, payment: 'authorization' },
@@ -59,6 +61,7 @@ const seedJobs: SeedJob[] = [
   { id: 'J-2053', customerId: 'gasser', title: 'Grease filters', material: 'Inox 1 mm', qty: 40, ops: [op('LAS1', 4, 'cut'), op('PB1', 3, 'bend')], releaseDay: 3, slackDays: 1, priceChf: 1720, payment: 'authorization' },
   { id: 'J-2054', customerId: 'keller', title: 'Shaft adapters', material: '42CrMo4', qty: 24, ops: [op('MILL1', 12, '5-axis'), op('MILL2', 6, 'deburr')], releaseDay: 3, slackDays: 1, priceChf: 5400, payment: 'authorization' },
   { id: 'J-2055', customerId: 'meier', title: 'Pendant canopies', material: 'Brass 1.5 mm', qty: 40, ops: [op('LAS1', 3, 'cut'), op('PB1', 4, 'spin/bend')], releaseDay: 4, slackDays: 2, priceChf: 2100, payment: 'prepaid' },
+  { id: 'J-2065', customerId: 'alpdrone', title: 'Cover blanks', material: 'Alu 5754 2 mm', qty: 60, ops: [op('LAS1', 4, 'cut')], releaseDay: 3, slackDays: 1, priceChf: 1320, payment: 'authorization' },
   { id: 'J-2056', customerId: 'alpdrone', title: 'Gimbal mounts', material: 'Alu 7075', qty: 30, ops: [op('MILL1', 10, '5-axis')], releaseDay: 4, slackDays: 1, priceChf: 3650, payment: 'authorization' },
   { id: 'J-2057', customerId: 'brunner', title: 'Rack plates', material: 'Alu 5083 5 mm', qty: 40, ops: [op('LAS1', 4, 'cut'), op('PB1', 4, 'bend')], releaseDay: 5, slackDays: 1, priceChf: 1880, payment: 'authorization' },
   { id: 'J-2058', customerId: 'vuilleumier', title: 'Dial blanks fixture', material: 'Alu 6082', qty: 4, ops: [op('MILL2', 10, 'mill')], releaseDay: 5, slackDays: 1, priceChf: 2300, payment: 'authorization' },
