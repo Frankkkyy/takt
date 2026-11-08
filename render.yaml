@@ -5,7 +5,7 @@ services:
     name: takt
     runtime: node
     # free sleeps after 15 min idle (see DEPLOY.md "Keep-alive"); switch to starter on the hackathon credits.
-    plan: free
+    plan: starter
     region: frankfurt
     # devDependencies (vite, typescript) are needed to build; npm start runs the server with tsx.
     buildCommand: npm ci --include=dev && npm run build
