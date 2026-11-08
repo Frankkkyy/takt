@@ -5,7 +5,8 @@
 // session.start({ presentationMode: 'auto' }, createOrderPromise) where the promise resolves to { orderId }.
 import { useEffect, useRef, useState } from 'react';
 import type { DemoState, PayPalStep } from '../../../shared/types';
-import { chf, post } from '../api';
+import { chf, dayShort, post } from '../api';
+import { EmptyPage, ShopHeader } from './Offer';
 
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -118,6 +119,7 @@ function SdkButton({ orderId, onState, onFail }: { orderId: string; onState: (s:
   return (
     <div className="sdk-pay">
       <paypal-button id="paypal-sdk-button" type="pay" ref={ref} hidden />
+      {!ready && <div className="sk-line" style={{ height: 45, borderRadius: 999 }} aria-label="Loading PayPal" role="status" />}
       {!ready && <small className="muted">Loading PayPal…</small>}
       {ready && <small className="muted">PayPal JS SDK v6 · {ready.auth === 'clientToken' ? 'client token' : 'client id'} · locale {ready.locale}</small>}
       {busy && <small className="muted">Authorizing with PayPal…</small>}
@@ -141,10 +143,16 @@ export function RushCheckout({ state, onState, standalone = false }: { state: De
     <div className={`phone checkout ${standalone ? 'standalone' : ''}`}>
       <div className="phone-notch" />
       <div className="phone-screen">
-        <div className="offer-shop">Werkstatt Reuss · rush order</div>
+        <ShopHeader sub="Rush order · Emmen LU" />
         <h3>{rush.qty}× {rush.title}</h3>
         <p className="offer-to">{rush.customer.contact} · {rush.customer.name}</p>
-        <div className="offer-amount"><small>Total</small><b>{chf(plan.rushPriceChf)}</b><span className="pp-tag">PayPal · hold only</span></div>
+        <div className="offer-card">
+          <div className="offer-amount"><small>Total</small><b className="pay-total">{chf(plan.rushPriceChf)}</b><span className="pp-tag">PayPal · hold only</span></div>
+          <div className="offer-dates single">
+            <div><small>Ready by</small><b>{dayShort(state.boardStartIso, rush.dueDay)}</b></div>
+            <div><small>Charged</small><b>At shipment</b></div>
+          </div>
+        </div>
         <p className="small muted">PayPal holds the amount now. You are charged only when the parts ship; if the workshop cancels, the hold is released and nothing is charged.</p>
         {open && state.modes.paypal === 'mock' && (
           <div className="pay-row">
@@ -163,8 +171,15 @@ export function RushCheckout({ state, onState, standalone = false }: { state: De
             )}
           </>
         )}
-        {state.stage === 'awaiting-payment' && o.status !== 'created' && <p className="muted small">Approved. Waiting for PayPal to confirm the authorization…</p>}
-        {state.stage === 'committed' && <p className="offer-done">✓ Payment held by PayPal. Your parts are scheduled.</p>}
+        {state.stage === 'awaiting-payment' && o.status !== 'created' && <div className="skeleton" role="status"><div className="sk-head"><span className="dot" />Approved. Waiting for PayPal to confirm the authorization…</div><div className="sk-line w80" /></div>}
+        {state.stage === 'committed' && (
+          <div className="offer-done confirm" role="status">
+            <span className="confirm-check" aria-hidden>✓</span>
+            <b>Payment held by PayPal.</b>
+            <span className="confirm-line">Your parts are scheduled</span>
+            <small>Ready {dayShort(state.boardStartIso, rush.dueDay)} · charged at shipment</small>
+          </div>
+        )}
         {state.paypalNotice && state.stage === 'awaiting-payment' && <p className={`callout ${state.paypalNotice.kind === 'error' ? 'bad' : 'warn'} small`} role="alert" id="paypal-notice">{state.paypalNotice.text}</p>}
       </div>
     </div>
@@ -172,7 +187,7 @@ export function RushCheckout({ state, onState, standalone = false }: { state: De
 }
 
 export function RushPayPage({ state, onState }: { state: DemoState; onState: (s: DemoState) => void }) {
-  if (!state.rushOrder) return <div className="center muted">No rush checkout is open. Open it from the same browser as the owner console (each browser runs its own demo).</div>;
+  if (!state.rushOrder) return <EmptyPage icon="⏸" title="No checkout is open yet">The rush checkout opens once the workshop has approved the plan. Open it from the same browser as the owner console: each browser runs its own demo shop. <a href="#/">Back to the console</a></EmptyPage>;
   return <div className="center offer-page"><RushCheckout state={state} onState={onState} standalone /></div>;
 }
 
