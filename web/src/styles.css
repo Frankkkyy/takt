@@ -296,7 +296,7 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .legend > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .sw { display: inline-block; width: 14px; height: 10px; border-radius: 3px; border: 2px dashed transparent; }
 .board-bar { display: flex; align-items: center; gap: var(--sp-3); padding: 8px 12px; border-bottom: 1px solid var(--n-200); background: var(--n-25); flex-wrap: wrap; }
-.board-bar .legend { padding: 0; gap: var(--sp-3); font-size: var(--fs-xs); }
+.board-bar .legend { padding: 0; gap: 4px var(--sp-3); font-size: var(--fs-xs); flex: 1 1 0; min-width: 0; }
 .board-bar .hint { color: var(--n-700); font-style: normal; display: inline-flex; align-items: center; gap: 5px; }
 .board-bar .hint::before { content: '↔'; font-size: 12px; color: var(--n-500); }
 .zoom { display: flex; gap: 2px; background: var(--n-100); border-radius: var(--r-sm); padding: 2px; }
@@ -315,9 +315,52 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .sw.ghost-rush-sw { border-color: var(--accent); background: rgba(242, 162, 12, 0.15); }
 .sw.ghost-bump-sw { border-color: var(--ghost-ask); background: var(--ghost-ask-soft); }
 .sw.ghost-agreed-sw { border-style: solid; border-color: var(--ok); background: var(--ok-soft); }
-.bryntum-board { --b-font-family: var(--font); }
+/* Bryntum Scheduler Pro + ResourceHistogram, themed with Takt's tokens: Bryntum's own CSS variables first,
+   class overrides only where it has none. Behaviour and event data are untouched. */
+.bryntum-board {
+  --b-font-family: var(--font);
+  --b-widget-color: var(--n-900);
+  --b-grid-background: var(--n-0);
+  --b-grid-header-background: var(--n-25);
+  --b-grid-header-color: var(--n-500);
+  --b-grid-header-font-weight: 600;
+  --b-grid-header-border-color: var(--n-200);
+  --b-grid-header-text-transform: none;
+  --b-grid-cell-border-color: var(--n-200);
+  --b-grid-row-border-color: var(--n-200);
+  --b-grid-cell-hover-background: transparent;
+  --b-grid-splitter-color: var(--n-200);
+  --b-grid-splitter-narrow-color: var(--n-200);
+  --b-column-lines-tick-color: #eef0f3;
+  --b-column-lines-major-color: var(--n-200);
+  --b-dependency-color: var(--n-300);
+  --b-dependency-stroke-width: 1.25px;
+  --b-time-range-line-color: var(--accent-strong);
+  --b-time-range-line-header-background: var(--accent);
+  --b-time-range-line-label-color: var(--accent-ink);
+  --b-time-range-line-header-border-radius: var(--r-xs);
+  --b-time-range-line-width: 2px;
+  --b-sch-event-border-radius: var(--r-sm);
+  --b-sch-event-padding-inline: 6px;
+}
 .bryntum-board .b-grid-header-text, .bryntum-board .b-sch-header-text { font-family: var(--font); }
-.bryntum-board .b-sch-event-wrap .takt-ev { border-radius: var(--r-sm); color: #fff; font-size: var(--fs-xs); padding: 0 5px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16); overflow: hidden; transition: background-color 0.4s, border-color 0.4s, opacity 0.4s; }
+/* header: day names quiet but legible, hour ticks small and muted, the resource header as an eyebrow */
+.bryntum-board .b-grid-header-container { box-shadow: none; border-bottom: 1px solid var(--n-200); }
+.bryntum-board .b-grid-headers-locked .b-grid-header-text-content { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--n-500); }
+.bryntum-board .b-sch-header-row-0 .b-sch-header-text { font-size: var(--fs-sm); font-weight: 650; color: var(--n-700); letter-spacing: 0.1px; }
+.bryntum-board .b-sch-header-row-0 .b-sch-header-time-axis-cell { border-inline-start-color: var(--n-200); }
+.bryntum-board .b-sch-header-row.b-lowest .b-sch-header-time-axis-cell { border-inline-start-color: transparent; border-bottom: 0; }
+.bryntum-board .b-sch-header-row.b-lowest .b-sch-header-text { font-size: var(--fs-2xs); font-weight: 600; color: var(--n-400); font-variant-numeric: tabular-nums; }
+/* resource column: machine name over a mono id chip */
+.bryntum-board .b-grid-sub-grid-locked .b-grid-cell { padding-inline: 14px; }
+.res-cell b { font-weight: 650; color: var(--n-900); }
+.res-cell small { font-family: var(--mono); font-size: var(--fs-2xs); letter-spacing: 0.3px; color: var(--n-500); margin-top: 2px; }
+/* dependencies: hairlines that stay behind the bars */
+.bryntum-board .b-sch-dependency { stroke-dasharray: none; }
+.bryntum-board .b-sch-dependency-arrow { fill: var(--n-300); }
+/* rush deadline: amber line, small amber pill */
+.bryntum-board .b-sch-time-range.rush-due .b-sch-header-text, .bryntum-board .b-time-ranges-header-canvas .rush-due { font-size: var(--fs-xs); font-weight: 700; }
+.bryntum-board .b-sch-event-wrap .takt-ev { border-radius: var(--r-sm); color: #fff; font-size: var(--fs-xs); padding: 0; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16); overflow: hidden; transition: background-color 0.4s, border-color 0.4s, opacity 0.4s; }
 .bryntum-board .takt-ev.pay-authorized { background: var(--pay-authorized); }
 .bryntum-board .takt-ev.pay-prepaid { background: var(--pay-prepaid); }
 .bryntum-board .takt-ev.pay-compensated { background: var(--pay-compensated); }
@@ -334,16 +377,23 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .ev-txt span { font-size: var(--fs-2xs); opacity: 0.92; }
 .bryntum-board .takt-ev { container-type: inline-size; }
 @container (max-width: 64px) { .ev-txt span { display: none; } }
+/* a sliver (2-week view) keeps its colour but drops the single clipped letter */
+@container (max-width: 30px) { .ev-txt { visibility: hidden; } }
 .takt-tip { font-size: var(--fs-sm); line-height: 1.5; }
 .takt-tip .late { color: var(--bad); font-weight: 700; }
 .takt-tip small { color: var(--n-500); font-family: var(--mono); }
-.bryntum-board .rush-due { border-left: 2px solid var(--bad); }
-.bryntum-board .b-histogram rect.b-series-effort { fill: #b9c8dc; }
-.bryntum-board .b-histogram rect.b-series-effort.full { fill: #f4cfc4; }
+/* histogram: inset bars (a non-scaling white stroke makes the gaps), quiet blue-grey, full days in a soft red */
+.bryntum-board .histo-wrap .b-grid-sub-grid-locked .b-grid-cell { padding-inline: 14px; }
+.bryntum-board .b-histogram rect.b-series-effort { fill: #cdd7e4; stroke: var(--n-0); stroke-width: 6px; vector-effect: non-scaling-stroke; }
+.bryntum-board .b-histogram rect.b-series-effort.full { fill: #f5d6cf; }
 .bryntum-board .b-histogram rect.b-series-effort.over { fill: var(--bad); }
-.bryntum-board .b-histogram text.b-bar-legend { writing-mode: horizontal-tb; text-anchor: middle; dominant-baseline: central; font-size: var(--fs-sm); font-weight: 700; fill: var(--n-900); }
-.bryntum-board .b-histogram text.b-bar-legend.full { fill: #7d2318; }
+.bryntum-board .b-histogram text.b-bar-legend { writing-mode: horizontal-tb; text-anchor: middle; dominant-baseline: central; font-family: var(--font); font-size: var(--fs-xs); font-weight: 700; fill: var(--n-700); font-variant-numeric: tabular-nums; }
+.bryntum-board .b-histogram text.b-bar-legend.full { fill: #8a2a1e; }
 .bryntum-board .b-histogram text.b-bar-legend.over { fill: #fff; }
+/* event tooltip (rendered outside the board) */
+.b-tooltip:has(.takt-tip) { --b-tooltip-rich-background: var(--n-0); --b-tooltip-rich-border-radius: var(--r-md); border: 1px solid var(--n-200); box-shadow: var(--sh-2); font-family: var(--font); color: var(--n-900); }
+.takt-tip b { font-weight: 700; }
+.takt-tip .tip-pay { color: var(--n-700); }
 
 /* board drag → move review */
 .move-review { position: relative; margin: var(--sp-2) 10px; padding: 10px 36px 10px 12px; border-radius: var(--r-md); border: 1px solid var(--n-200); background: var(--n-25); font-size: 13px; display: flex; flex-direction: column; gap: 4px; animation: card-in 0.3s var(--ease) both; }
