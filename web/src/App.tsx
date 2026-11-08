@@ -5,6 +5,7 @@ import { Flow } from './components/Flow';
 import { OfferPage } from './components/Offer';
 import { RushPayPage } from './components/PayPal';
 import { RUSH_SAMPLES } from './samples';
+import { displayTitle, isPayPalEvent } from './labels';
 
 // Bryntum Scheduler Pro is big; the customer phone pages (#/offer, #/pay) never load it.
 const Board = lazy(() => import('./components/Board').then((m) => ({ default: m.Board })));
@@ -113,7 +114,8 @@ const time = (at: string) => new Date(at).toLocaleTimeString('de-CH');
 
 function LogItem({ e }: { e: LedgerEvent }) {
   const tool = toolOf(e);
-  const title = tool ? TOOL_TITLES[tool] ?? e.title : e.title;
+  const title = tool ? TOOL_TITLES[tool] ?? e.title : displayTitle(e.title);
+  const rawEvent = isPayPalEvent(e.title);
   const raw = tool || e.detail.length > 180;
   const cat = catOf(e);
   return (
@@ -122,7 +124,8 @@ function LogItem({ e }: { e: LedgerEvent }) {
       <span className="time">{time(e.at)}</span>
       <div className="log-main">
         <span className="src">{SRC_LABEL[cat]}</span>
-        <b>{title}</b>
+        <b title={rawEvent ? `PayPal webhook event ${e.title}` : undefined}>{title}</b>
+        {rawEvent && <code className="evt" title="PayPal event type">{e.title}</code>}
         {e.amountChf !== undefined && <span className="amt">{chf(e.amountChf)}</span>}
         {e.paypalId && <code title="PayPal id">{e.paypalId}</code>}
         {raw ? (
@@ -205,7 +208,7 @@ interface PhaseBlock { phase: Phase; events: LedgerEvent[] /* newest first */ }
 
 function PhaseGroup({ block, open, current }: { block: PhaseBlock; open: boolean; current: boolean }) {
   const chrono = [...block.events].reverse();
-  const keyTitles = chrono.filter((e) => e.source !== 'tool').map((e) => (e.amountChf !== undefined ? `${e.title} ${chf(e.amountChf)}` : e.title));
+  const keyTitles = chrono.filter((e) => e.source !== 'tool').map((e) => (e.amountChf !== undefined ? `${displayTitle(e.title)} ${chf(e.amountChf)}` : displayTitle(e.title)));
   const tools = chrono.length - keyTitles.length;
   const summary = [...keyTitles, ...(tools ? [`agent used ${plural(tools, 'tool')}`] : [])].join(' · ');
   // Follows the default (a phase folds when the next one starts) but keeps the owner's own clicks.
