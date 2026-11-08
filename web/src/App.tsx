@@ -94,6 +94,9 @@ function LogItem({ e }: { e: LedgerEvent }) {
 export function App() {
   const [state, setState] = useState<DemoState | null>(null);
   const [draft, setDraft] = useState(RUSH_SAMPLES[0].text);
+  // Cold open: one entry point. "Open request" (hero) loads the email into the panel and hands over to
+  // "Let Takt read it", which only then becomes the primary button. Counts up so the highlight replays.
+  const [primed, setPrimed] = useState(0);
   const hash = useHash();
 
   useEffect(() => {
@@ -148,10 +151,21 @@ export function App() {
           >
             Agent: {a.configured === 'deterministic' ? 'rules' : a.last === 'fallback' ? 'rules (fallback)' : `Claude Haiku 5.5${a.last === 'replay' ? ' · recorded' : a.last === 'live' ? ' · live' : ''}`}
           </span>
-          <button className="btn small ghost" onClick={async () => setState((await post('/api/demo/reset')).state)} title="Resets only your own demo session">Reset demo</button>
+          <button className="btn small ghost" onClick={async () => { setPrimed(0); setState((await post('/api/demo/reset')).state); }} title="Resets only your own demo session">Reset demo</button>
         </div>
       </header>
-      {coldOpen && <Story state={state} onOpen={() => { setDraft(STORY_SAMPLE.text); document.querySelector<HTMLTextAreaElement>('.intake textarea')?.focus(); }} />}
+      {coldOpen && (
+        <Story
+          state={state}
+          onOpen={() => {
+            setDraft(STORY_SAMPLE.text);
+            setPrimed((n) => n + 1);
+            const card = document.querySelector('.intake-card');
+            card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => document.querySelector<HTMLButtonElement>('#read-request')?.focus({ preventScroll: true }), 50);
+          }}
+        />
+      )}
       <main className="main">
         <section className="left">
           <Suspense fallback={<div className="board board-loading muted">Loading the board…</div>}>
@@ -164,7 +178,7 @@ export function App() {
             </ul>
           </div>
         </section>
-        <Flow state={state} onState={setState} draft={draft} setDraft={setDraft} />
+        <Flow state={state} onState={setState} draft={draft} setDraft={setDraft} primed={primed} onPrime={() => setPrimed((n) => n || 1)} />
       </main>
     </div>
   );

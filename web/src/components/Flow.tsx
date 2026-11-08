@@ -170,7 +170,7 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
   );
 }
 
-export function Flow({ state, onState, draft: text, setDraft: setText }: { state: DemoState; onState: (s: DemoState) => void; draft: string; setDraft: (t: string) => void }) {
+export function Flow({ state, onState, draft: text, setDraft: setText, primed = 0, onPrime }: { state: DemoState; onState: (s: DemoState) => void; draft: string; setDraft: (t: string) => void; primed?: number; onPrime?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const run = async (label: string, path: string, body?: unknown) => {
@@ -199,8 +199,9 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
       <MoveCard state={state} onState={onState} busy={busy} run={run} />
 
       {(stage === 'idle' || stage === 'intake') && (
-        <section className="card">
+        <section className={`card intake-card${primed ? ' primed' : ''}`} key={`intake-${primed}`}>
           <h2>Rush request</h2>
+          {!primed && !rush && <p className="muted small intro">Start with the email on the left (<b>Open request</b>), or paste any request here.</p>}
           <div className="intake">
             <div className="photo" aria-label="Photo of the broken bracket">
               <svg viewBox="0 0 80 60" width="80" height="60"><rect width="80" height="60" rx="6" fill="#e9edf3" /><path d="M14 46 L14 16 L40 16 L40 26 L26 26 L26 46 Z" fill="#8a96a8" /><path d="M30 18 l6 8 l-3 2 l4 6" stroke="#d1495b" strokeWidth="2" fill="none" /><circle cx="20" cy="40" r="3" fill="#e9edf3" /></svg>
@@ -209,9 +210,9 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
             <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} />
           </div>
           <div className="chips">
-            {RUSH_SAMPLES.map((s) => <button key={s.label} className="chip" onClick={() => setText(s.text)}>{s.label}</button>)}
+            {RUSH_SAMPLES.map((s) => <button key={s.label} className="chip" onClick={() => { setText(s.text); onPrime?.(); }}>{s.label}</button>)}
           </div>
-          <button className="btn primary" disabled={!!busy} onClick={() => run('intake', '/api/rush/intake', { text })}>
+          <button id="read-request" className={`btn ${primed || rush ? 'primary' : 'ghost dark'}`} disabled={!!busy} onClick={() => run('intake', '/api/rush/intake', { text })}>
             {busy === 'intake' ? 'Agent is reading…' : 'Let Takt read it'}
           </button>
           {state.intakeQuestion && !rush && (

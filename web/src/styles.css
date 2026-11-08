@@ -310,3 +310,9 @@ details.more summary { cursor: pointer; color: var(--navy); font-weight: 600; }
 details.more[open] { display: flex; flex-direction: column; gap: 8px; }
 details.more table.options { margin-top: 6px; }
 .btn.cta-sticky { position: sticky; bottom: 12px; z-index: 2; box-shadow: 0 0 0 6px var(--panel), 0 6px 18px rgba(31,58,95,.25); }
+
+/* cold open hand-over: "Open request" lights up the panel */
+.intake-card.primed { animation: primed 1.6s ease-out 1; }
+@keyframes primed { 0%, 30% { box-shadow: 0 0 0 3px var(--amber); } 100% { box-shadow: 0 0 0 0 rgba(224,161,0,0); } }
+@media (prefers-reduced-motion: reduce) { .intake-card.primed { animation: none; box-shadow: 0 0 0 2px var(--amber); } }
+.card p.intro { margin: -4px 0 0; }
