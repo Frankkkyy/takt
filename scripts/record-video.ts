@@ -5,7 +5,8 @@
 //   ANTHROPIC_API_KEY= PAYPAL_MODE=sandbox npm run dev     (empty key = replay/fallback only: zero Claude spend)
 //   npm run record [baseUrl]
 //
-// Env: VIDEO_OUT (default ../../contests/paypal-ai/submission/video/takt-roughcut-v1.mp4)
+// Env: VIDEO_OUT (default ../../contests/paypal-ai/submission/video/takt-roughcut-v2.mp4)
+//      VIDEO_WIDTH (default 1920: the 1440×900 capture is upscaled (lanczos) to 1920×1200 so YouTube serves its 1080p+ bitrate)
 //      KEEP_CLIPS=1 (keep the raw Playwright .webm files and the cut segments next to the output)
 // Captions and the cursor dot are overlays injected into the recorded page only; the app itself is unchanged.
 import dotenv from 'dotenv';
@@ -19,8 +20,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const base = process.argv[2] ?? 'http://localhost:5173';
-const out = path.resolve(process.env.VIDEO_OUT ?? new URL('../../../contests/paypal-ai/submission/video/takt-roughcut-v1.mp4', import.meta.url).pathname);
+const out = path.resolve(process.env.VIDEO_OUT ?? new URL('../../../contests/paypal-ai/submission/video/takt-roughcut-v2.mp4', import.meta.url).pathname);
 const W = 1440, H = 900;
+const OW = Number(process.env.VIDEO_WIDTH ?? 1920), OH = Math.round((OW * H) / W / 2) * 2; // output size (even)
 const work = mkdtempSync(path.join(tmpdir(), 'takt-video-'));
 mkdirSync(path.dirname(out), { recursive: true });
 
@@ -161,7 +163,7 @@ const VO = {
   10: ['The AI reads and writes. Code does the numbers.', 'The owner decides. PayPal moves the money.'],
   11: ["Takt. Pay the customer who can wait, charge the one who can't."],
 } as const;
-const LEN: Record<number, number> = { 1: 12, 2: 12, 3: 16, 4: 18, 5: 21, 6: 16, 7: 20, 8: 14, 9: 16, 10: 14, 11: 6 }; // shot 5: +3 s injection insert
+const LEN: Record<number, number> = { 1: 12, 2: 12, 3: 16, 4: 18, 5: 18, 6: 16, 7: 20, 8: 14, 9: 16, 10: 14, 11: 6 }; // shot 5: + ~3 s injection insert
 const skipped: string[] = [];
 
 async function beginShot(page: Page, n: number) {
@@ -238,7 +240,7 @@ async function answer(who: RegExp, chip: string, pg = page) {
   await clickOn(pg, phone.locator('.demo-helper summary'));
   await clickOn(pg, phone.getByRole('button', { name: chip }));
   await scrollTo(pg, phone.locator('.reply textarea'), 'center');
-  await pause(pg, 1.2);
+  await pause(pg, 0.8);
   await clickOn(pg, phone.locator('.send-reply'));
   return phone;
 }
@@ -246,13 +248,13 @@ await beginShot(page, 5);
 await caption(page, VO[5][0]);
 await clickOn(page, page.getByRole('button', { name: /^Send \d offers?$/ }));
 await page.locator('.phone').first().waitFor();
-await pause(page, 1);
+await pause(page, 0.5);
 await caption(page, VO[5][1]);
 const rochat = await answer(/Rochat/, 'Counter (FR)');
 await offCamera(page, () => rochat.locator('.offer-done').waitFor({ timeout: 45_000 }));
 await scrollTo(page, rochat.locator('.offer-done'), 'end');
 await caption(page, VO[5][2]);
-await pause(page, 2);
+await pause(page, 1.2);
 const showEn = rochat.getByRole('button', { name: 'Show English' }).last();
 if (await showEn.count()) {
   await clickOn(page, showEn); await pause(page, 1.3);
@@ -263,7 +265,7 @@ await caption(page, VO[5][3]);
 const meier = await answer(/Meier/, 'Yes (DE)');
 await offCamera(page, () => page.locator('#approve-moves').waitFor({ timeout: 45_000 }));
 await scrollTo(page, meier.locator('.offer-done'), 'end');
-await pause(page, 1.5);
+await pause(page, 0.8);
 await holdTo(page, LEN[5]);
 endSeg();
 const injectionAt = segs.length; // the injection insert (recorded later, in its own session) is spliced in here
@@ -274,7 +276,7 @@ await beginShot(page, 6);
 await caption(page, VO[6][0]);
 const approve = page.locator('#approve-moves');
 await scrollTo(page, approve, 'end');
-await pause(page, 2);
+await highlight(page, page.getByRole('heading', { name: 'Everyone agreed. Your approval moves the money.' }), '', 2);
 await caption(page, VO[6][1]);
 await highlight(page, page.locator('.flow .checks').first(), '5 checks enforced by code', 5);
 await moveTo(page, approve);
@@ -346,7 +348,7 @@ await page.mouse.move(5, 5);
 await note(page, '');
 await beginShot(page, 8);
 await caption(page, VO[8][0]);
-await pause(page, 2);
+await highlight(page, page.getByRole('heading', { name: 'PayPal confirmed. The rush is on the board.' }), '', 2.2);
 await highlight(page, board, 'rush job placed, bumped jobs moved', 3.5);
 await caption(page, VO[8][1]);
 await highlight(page, page.locator('.net').first().locator('xpath=..'), 'net uplift', 4);
@@ -356,8 +358,9 @@ await holdTo(page, LEN[8]);
 await beginShot(page, 9);
 await caption(page, VO[9][0]);
 const row = page.locator('.settle .offer-row', { hasText: 'J-2044' });
-await scrollTo(page, row, 'center');
-await clickOn(page, row.getByRole('button', { name: 'Ship' }));
+await scrollTo(page, page.locator('.step-head[data-step="settle"]'), 'center');
+await highlight(page, page.locator('.step-head[data-step="settle"]'), '', 1.5);
+await clickOn(page, row.getByRole('button', { name: 'Ship' })); // the only amber Ship button (next job to ship)
 await offCamera(page, () => row.locator('.good').waitFor({ timeout: 30_000 }).catch(() => {}));
 await caption(page, VO[9][1]);
 await highlight(page, row, 'captured CHF 70 less', 3);
@@ -375,23 +378,31 @@ await scrollTo(page, rushJob, 'center');
 await highlight(page, rushJob, 'rush cancelled · authorization voided', 2);
 await holdTo(page, LEN[9]);
 
-// Shot 10 + 11: own cards (rendered here, recording only).
+// Shot 10: the in-app strip (who did the last three beats), then the recap card.
+const strip = page.locator('.cc-strip');
+await scrollTo(page, strip, 'center');
+await page.mouse.move(5, 5);
+await beginShot(page, 10);
+await caption(page, VO[10][0]);
+await highlight(page, strip, 'Claude reads & writes · Code does the numbers · Owner decides · PayPal moves money', 5.5);
+endSeg();
+// Shot 10 (card) + 11: own cards (rendered here, recording only).
 const CARD = (body: string) => `<!doctype html><html><head><style>
   body{margin:0;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#16233f;color:#fff;font-family:system-ui,Segoe UI,Roboto,sans-serif}
-  .row{display:flex;align-items:center;gap:18px}.box{background:#24365e;border:2px solid #4a6aa8;border-radius:16px;padding:30px 26px;width:250px;text-align:center}
+  .row{display:flex;align-items:center;gap:12px}.box{background:#24365e;border:2px solid #4a6aa8;border-radius:16px;padding:28px 22px;width:232px;text-align:center}
   .box b{display:block;font-size:34px;margin-bottom:8px;color:#ffd75e}.box span{font-size:22px;line-height:1.4;color:#d9e2f5}.arrow{font-size:34px;color:#7f9bd6}
   .small{margin-top:44px;font-size:22px;max-width:1200px;text-align:center;color:#b6c4e3}.big{font-size:120px;font-weight:800;letter-spacing:1px}.sub{font-size:40px;color:#ffd75e;margin-top:8px}
   .by{margin-top:48px;font-size:30px}.url{margin-top:14px;font-size:28px;color:#9fb7ea}</style></head><body>${body}</body></html>`;
 await page.setContent(CARD(`<div class="row">
-  <div class="box"><b>Claude</b><span>reads, chooses whom to ask, writes and negotiates</span></div><div class="arrow">→</div>
-  <div class="box"><b>Code</b><span>prices, plans and enforces every limit</span></div><div class="arrow">→</div>
-  <div class="box"><b>Owner</b><span>approves every money move</span></div><div class="arrow">→</div>
-  <div class="box"><b>PayPal</b><span>holds, captures less, pays out, voids</span></div></div>
+  <div class="box"><b>Claude</b><span>reads &amp; writes: requests, whom to ask, offers, replies</span></div><div class="arrow">→</div>
+  <div class="box"><b>Code</b><span>does the numbers: prices, plans, every limit</span></div><div class="arrow">→</div>
+  <div class="box"><b>Owner</b><span>decides: approves every money move</span></div><div class="arrow">→</div>
+  <div class="box"><b>PayPal</b><span>moves money: holds, captures less, pays out, voids</span></div></div>
   <div class="small">20/20 agent eval · 49 tests · PayPal sandbox, CHF · Bryntum Scheduler Pro: drag a job and the agent prices the move</div>`));
 await page.mouse.move(-10, -10);
-await beginShot(page, 10);
-await caption(page, VO[10][0]); await pause(page, LEN[10] / 2);
-await caption(page, VO[10][1]); await holdTo(page, LEN[10]);
+await caption(page, VO[10][1]);
+startSeg(page);
+await holdTo(page, LEN[10]);
 await page.setContent(CARD(`<div class="big">Takt</div><div class="sub">Airline bumping for factory schedules</div>
   <div class="by">Built by Francisco Del Barrio</div><div class="url">github.com/Frankkkyy/takt</div>`));
 await beginShot(page, 11);
@@ -428,7 +439,7 @@ await pause(p2, 1);
 await clickOn(p2, mphone.locator('.send-reply'));
 await offCamera(p2, () => mphone.locator('.callout.warn').or(p2.getByText('Agent escalated to the owner')).first().waitFor({ timeout: 45_000 }));
 await scrollTo(p2, mphone.locator('.callout.warn').first(), 'center');
-await highlight(p2, mphone.locator('.callout.warn').first(), 'escalated to the owner · nothing paid', 2.5);
+await highlight(p2, mphone.locator('.callout.warn').first(), 'escalated to the owner · nothing paid', 2);
 endSeg();
 const insertion = segs.splice(insStart);
 segs.splice(injectionAt, 0, ...insertion);
@@ -443,8 +454,8 @@ for (const [i, s] of segs.entries()) {
   const dst = path.join(work, `seg-${String(i).padStart(3, '0')}.mp4`);
   const crop = s.crop ? `crop=${s.crop.w}:${s.crop.h}:0:0,` : '';
   execFileSync(ff, ['-y', '-loglevel', 'error', '-i', src, '-ss', s.start.toFixed(3), '-to', s.end.toFixed(3),
-    '-vf', `${crop}scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=0x16233f,fps=30,format=yuv420p`,
-    '-an', '-c:v', 'libx264', '-preset', 'medium', '-crf', '20', dst]);
+    '-vf', `${crop}scale=${OW}:${OH}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${OW}:${OH}:(ow-iw)/2:(oh-ih)/2:color=0x16233f,fps=30,format=yuv420p`,
+    '-an', '-c:v', 'libx264', '-preset', 'slow', '-crf', '16', dst]);
   parts.push(dst);
 }
 const list = path.join(work, 'list.txt');
