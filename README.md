@@ -17,7 +17,7 @@ When a job shop's schedule is full and a rush order arrives, Takt makes room. It
 | | |
 |---|---|
 | PayPal sandbox buyer | `sb-rgdtm53776614@personal.example.com` |
-| Password | `K)5@3_wr` |
+| Password | provided to judges in the Devpost testing-instructions field |
 | Or pay as guest (on the PayPal page) | card `4005519200000004`, any future expiry, CVV `123` |
 
 These are PayPal **sandbox** test credentials: they hold fake money and cannot touch real funds.
