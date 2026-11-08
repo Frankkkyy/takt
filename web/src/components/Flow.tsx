@@ -190,7 +190,7 @@ type Run = (label: string, path: string, body?: unknown) => Promise<void>;
 /** A job that PayPal can still capture on shipment. */
 const canShip = (j: Job) => j.payment.kind === 'authorization' && j.status === 'booked';
 
-function SettleJob({ job: j, state, busy, run }: { job: Job; state: DemoState; busy: string | null; run: Run }) {
+function SettleJob({ job: j, state, busy, run, next = true }: { job: Job; state: DemoState; busy: string | null; run: Run; next?: boolean }) {
   const rush = state.rush;
   const auth = j.payment.kind === 'authorization' ? j.payment : undefined;
   const comp = j.compensationChf ?? 0;
@@ -206,7 +206,7 @@ function SettleJob({ job: j, state, busy, run }: { job: Job; state: DemoState; b
               ? <>capture {chf(auth.authorizedChf - comp)}{comp ? <small className="muted"> of {chf(auth.authorizedChf)}</small> : null}</>
               : 'prepaid · compensation paid out'}</span>
         <span className="settle-actions">
-          {auth && j.status === 'booked' && <button className="btn small primary" disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)}>Ship</button>}
+          {auth && j.status === 'booked' && <button className={`btn small ${next ? 'primary' : 'ghost dark'}`} disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)} title={next ? 'Next job to ship' : undefined}>Ship</button>}
           {j.rush && j.status === 'booked' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('cancel' + j.id, `/api/jobs/${j.id}/cancel`)} title="POST /v2/payments/authorizations/{id}/void">Cancel rush (void)</button>}
           {j.rush && j.status === 'shipped' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('refund' + j.id, `/api/jobs/${j.id}/refund`)} title="POST /v2/payments/captures/{id}/refund">Parts returned: refund</button>}
         </span>
@@ -355,6 +355,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
   const customer = (id: string) => state.customers.find((c) => c.id === id);
   const fmtSigned = (n: number) => `${n < 0 ? '−' : '+'}${chf(Math.abs(n))}`;
   const settleJobs = state.jobs.filter((j) => (j.rush || j.compensationChf) && (j.status !== 'cancelled' || j.rush));
+  const nextShip = settleJobs.find(canShip);
   const headline = storyHeadline(state, !!primed && text.startsWith(STORY_FROM));
 
   return (
@@ -566,7 +567,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
               <p className="muted small">Ship a job and PayPal captures what was agreed. Each job shows every PayPal object it touched; "Check in PayPal" reads the live status from the API.</p>
               <div className="settle">
                 {settleJobs.map((j) => (
-                  <SettleJob key={j.id} job={j} state={state} busy={busy} run={run} />
+                  <SettleJob key={j.id} job={j} state={state} busy={busy} run={run} next={j.id === nextShip?.id} />
                 ))}
               </div>
               {state.jobs.some((j) => j.rush && j.status === 'cancelled') && (
