@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DemoState, Job } from '../../../shared/types';
 import { chf, dayLong, MACHINE_SHORT, plural, post } from '../api';
 import { OfferCard, withParagraphs } from './Offer';
@@ -14,13 +14,64 @@ function AgentTag({ by, state }: { by: 'llm' | 'deterministic'; state: DemoState
 }
 
 const STEPS: { key: DemoState['stage'][]; label: string }[] = [
-  { key: ['idle', 'intake'], label: 'Rush request' },
+  { key: ['idle', 'intake'], label: 'Request' },
   { key: ['planned'], label: 'Make room' },
   { key: ['offers-sent'], label: 'Offers' },
   { key: ['awaiting-approval'], label: 'Owner OK' },
   { key: ['awaiting-payment'], label: 'Rush pays' },
   { key: ['committed'], label: 'Committed' },
 ];
+
+/** Progress stepper: numbered, done steps get a check, the current one is marked for screen readers too. */
+function Stepper({ steps, active, mini = false, label }: { steps: { label: string }[]; active: number; mini?: boolean; label: string }) {
+  return (
+    <ol className={`steps${mini ? ' mini' : ''}`} aria-label={label}>
+      {steps.map((s, i) => (
+        <li key={s.label} className={i < active ? 'done' : i === active ? 'active' : ''} aria-current={i === active ? 'step' : undefined}>
+          {s.label}{i < active && <span className="sr-only"> (done)</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** A headline number. */
+function Stat({ label, value, note, className = '' }: { label: string; value: string; note?: string; className?: string }) {
+  return (
+    <div className={`stat ${className}`}>
+      <small>{label}</small>
+      <b>{value}</b>
+      {note && <span>{note}</span>}
+    </div>
+  );
+}
+
+/** Loading placeholder while the agent works (replays are fast; live Claude takes a few seconds). */
+function Working({ title, lines = 3 }: { title: string; lines?: number }) {
+  return (
+    <div className="skeleton" role="status" aria-live="polite">
+      <div className="sk-head"><span className="dot" />{title}</div>
+      {Array.from({ length: lines }, (_, i) => <div key={i} className={`sk-line ${['', 'w80', 'w60', 'w40'][i % 4]}`} />)}
+    </div>
+  );
+}
+
+function GuardrailChecks({ checks }: { checks: { label: string; ok: boolean }[] }) {
+  const ok = checks.filter((c) => c.ok).length;
+  return (
+    <>
+      <div className="checks-head">
+        <span>Guardrail checks (code)</span>
+        <span className={`tag${ok === checks.length ? '' : ' fail'}`}>{ok} of {checks.length} pass</span>
+      </div>
+      <ul className="checks">
+        {checks.map((x) => <li key={x.label} className={x.ok ? 'ok' : 'fail'}><span className="ck" aria-hidden>{x.ok ? '✓' : '✗'}</span><span><span className="sr-only">{x.ok ? 'Pass: ' : 'Fail: '}</span>{x.label}</span></li>)}
+      </ul>
+    </>
+  );
+}
+
+const MOVE_ICON: Record<string, string> = { payout: '↗', 'capture-less': '−', 'rush-authorize': '⏸' };
 
 /** Shown whenever Claude was not used for the last step (limits, no key, API error): the demo never hides it. */
 function FallbackNote({ state }: { state: DemoState }) {
@@ -44,7 +95,7 @@ function SettleJob({ job: j, state, busy, run }: { job: Job; state: DemoState; b
   return (
     <div className="settle-job" data-job={j.id}>
       <div className="offer-row">
-        <b>{j.id} · {state.customers.find((c) => c.id === j.customerId)?.name ?? (j.rush ? rush?.customer.name : '')}{j.rush ? ' (rush)' : ''}</b>
+        <b>{j.id} · {state.customers.find((c) => c.id === j.customerId)?.name ?? (j.rush ? rush?.customer.name : '')}{j.rush ? ' (rush)' : ''} {auth ? <span className="pp-tag">{j.rush ? 'PayPal hold' : comp ? 'capture less' : 'PayPal hold'}</span> : <span className="pp-tag">PayPal Payout</span>}</b>
         <span>{j.status === 'cancelled'
           ? <span className="bad-text">✕ cancelled: {j.cancelledVia === 'refund' ? `${chf(auth?.authorizedChf ?? 0)} refunded` : 'hold voided, nothing charged'}</span>
           : j.status === 'shipped'
@@ -53,7 +104,7 @@ function SettleJob({ job: j, state, busy, run }: { job: Job; state: DemoState; b
               ? <>capture {chf(auth.authorizedChf - comp)}{comp ? <small className="muted"> of {chf(auth.authorizedChf)}</small> : null}</>
               : 'prepaid · compensation paid out'}</span>
         <span className="settle-actions">
-          {auth && j.status === 'booked' && <button className="btn small" disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)}>Ship</button>}
+          {auth && j.status === 'booked' && <button className="btn small primary" disabled={!!busy} onClick={() => run('ship' + j.id, `/api/jobs/${j.id}/ship`)}>Ship</button>}
           {j.rush && j.status === 'booked' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('cancel' + j.id, `/api/jobs/${j.id}/cancel`)} title="POST /v2/payments/authorizations/{id}/void">Cancel rush (void)</button>}
           {j.rush && j.status === 'shipped' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('refund' + j.id, `/api/jobs/${j.id}/refund`)} title="POST /v2/payments/captures/{id}/refund">Parts returned: refund</button>}
         </span>
@@ -61,7 +112,7 @@ function SettleJob({ job: j, state, busy, run }: { job: Job; state: DemoState; b
       <details className="pp-box">
         <summary>PayPal timeline ({j.paypal?.length ?? 0})</summary>
         <PayPalTrail steps={j.paypal ?? []} mode={state.modes.paypal} />
-        <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('check' + j.id, `/api/jobs/${j.id}/paypal-check`)}>{busy === 'check' + j.id ? 'Asking PayPal…' : 'Check in PayPal'}</button>
+        <button className={`btn small ghost dark${busy === 'check' + j.id ? ' is-busy' : ''}`} disabled={!!busy} onClick={() => run('check' + j.id, `/api/jobs/${j.id}/paypal-check`)}>{busy === 'check' + j.id ? 'Asking PayPal…' : 'Check in PayPal'}</button>
       </details>
     </div>
   );
@@ -94,12 +145,10 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
   return (
     <section className="card move-card" data-move-stage={m.stage}>
       <div className="move-head">
-        <h2>Board move · {m.jobId} {c?.name}</h2>
+        <h2 tabIndex={-1}>Board move · {m.jobId} {c?.name}</h2>
         {!open && <button className="close" aria-label="Dismiss" onClick={() => setHidden(m.id)}>×</button>}
       </div>
-      <ol className="steps mini">
-        {MOVE_STEPS.map((s, i) => <li key={s.label} className={i < active ? 'done' : i === active ? 'active' : ''}>{s.label}</li>)}
-      </ol>
+      <Stepper steps={MOVE_STEPS} active={active} mini label="Board move progress" />
       <div className="kv"><span>Delivery</span><b>{dayLong(state.boardStartIso, r.fromDay)} → {dayLong(state.boardStartIso, o?.toDay ?? r.toDay)}</b>{o && <small className="muted">promised {dayLong(state.boardStartIso, r.dueDay)}</small>}</div>
       {r.frees && <div className="kv"><span>Why</span><b>It {r.frees}</b></div>}
       {o && (
@@ -135,15 +184,14 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
           <ul className="moves">
             {m.approval.moves.map((mv) => (
               <li key={mv.id}>
+                <span className="mv-ico" aria-hidden>{MOVE_ICON[mv.kind] ?? '·'}</span>
                 <div><b>{mv.kind === 'payout' ? 'Payout' : 'Capture less'}</b> · {mv.customerName}</div>
                 <div className="amt">−{chf(mv.amountChf)}</div>
                 <small><code>{mv.api}</code> {mv.detail}</small>
               </li>
             ))}
           </ul>
-          <ul className="checks">
-            {m.approval.checks.map((x) => <li key={x.label} className={x.ok ? 'ok' : 'fail'}>{x.ok ? '✓' : '✗'} {x.label}</li>)}
-          </ul>
+          <GuardrailChecks checks={m.approval.checks} />
           <div className="row-actions">
             <button className="btn primary" id="move-approve" disabled={!!busy || !m.approval.checks.every((x) => x.ok)} onClick={() => run('move-approve', '/api/move/approve')}>
               {busy === 'move-approve' ? 'Moving money…' : 'Approve & send to PayPal'}
@@ -159,7 +207,7 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
           {m.stage === 'offer-sent' && <button className="btn small ghost dark" disabled={!!busy} onClick={() => run('move-discard', '/api/move/discard')}>Withdraw offer</button>}
         </div>
       )}
-      {m.stage === 'declined' && <p className="callout warn small">{c?.name} said no. Their date stays; nothing moved, nothing was paid.</p>}
+      {m.stage === 'declined' && <p className="callout warn small" role="status">{c?.name} said no. Their date stays; nothing moved, nothing was paid.</p>}
       {m.stage === 'committed' && (
         <>
           <p className="callout good small">{o ? `Moved with ${c?.name}'s consent; ${o.mechanism === 'payout' ? 'PayPal Payout sent' : `CHF ${o.compensationChf} less is captured at shipment`}.` : 'Moved within the promised date; no money involved.'}</p>
@@ -169,6 +217,8 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
     </section>
   );
 }
+
+const STORY_FROM = 'Grüezi Marco, am Mähdrescher';
 
 export function Flow({ state, onState, draft: text, setDraft: setText, primed = 0, onPrime }: { state: DemoState; onState: (s: DemoState) => void; draft: string; setDraft: (t: string) => void; primed?: number; onPrime?: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -188,63 +238,109 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
   const { rush, plan, stage } = state;
   const active = STEPS.findIndex((s) => s.key.includes(stage));
 
+  // Keyboard users: when a step replaces the card they were in, continue from the new step's heading.
+  const ref = useRef<HTMLElement>(null);
+  const prevStage = useRef(stage);
+  useEffect(() => {
+    if (prevStage.current === stage) return;
+    prevStage.current = stage;
+    const a = document.activeElement;
+    if (a && a !== document.body && ref.current && !ref.current.contains(a)) return;
+    if (a && a !== document.body && a.isConnected) return;
+    ref.current?.querySelector<HTMLElement>('.step-card h2')?.focus({ preventScroll: true });
+  }, [stage]);
+
+  const customer = (id: string) => state.customers.find((c) => c.id === id);
+  const fmtSigned = (n: number) => `${n < 0 ? '−' : '+'}${chf(Math.abs(n))}`;
+
   return (
-    <aside className="flow">
-      <ol className="steps">
-        {STEPS.map((s, i) => (
-          <li key={s.label} className={i < active ? 'done' : i === active ? 'active' : ''}>{s.label}</li>
-        ))}
-      </ol>
+    <aside className="flow" id="flow" ref={ref} aria-label="Current step" tabIndex={-1}>
+      <Stepper steps={STEPS} active={active} label="Rush order progress" />
       <FallbackNote state={state} />
       <MoveCard state={state} onState={onState} busy={busy} run={run} />
 
       {(stage === 'idle' || stage === 'intake') && (
-        <section className={`card intake-card${primed ? ' primed' : ''}`} key={`intake-${primed}`}>
-          <h2>Rush request</h2>
-          {!primed && !rush && <p className="muted small intro">Start with the email on the left (<b>Open request</b>), or paste any request here.</p>}
+        <section className={`card step-card intake-card${primed ? ' primed' : ''}`} key={`intake-${primed}`}>
+          <div className="card-head">
+            <h2 tabIndex={-1}>Rush request</h2>
+            {rush && <span className="eyebrow">Step 1 of 6</span>}
+          </div>
+          {!primed && !rush && <p className="muted small intro">Start with the email in the banner above (<b>Open request</b>), or paste any request in German, French or English.</p>}
+          {!rush && text.startsWith(STORY_FROM) && (
+            <div className="mail-from"><span aria-hidden>✉</span><span><b>Thomas Schmid</b> · Hof Schmid (farm), Escholzmatt</span></div>
+          )}
           <div className="intake">
-            <div className="photo" aria-label="Photo of the broken bracket">
-              <svg viewBox="0 0 80 60" width="80" height="60"><rect width="80" height="60" rx="6" fill="#e9edf3" /><path d="M14 46 L14 16 L40 16 L40 26 L26 26 L26 46 Z" fill="#8a96a8" /><path d="M30 18 l6 8 l-3 2 l4 6" stroke="#d1495b" strokeWidth="2" fill="none" /><circle cx="20" cy="40" r="3" fill="#e9edf3" /></svg>
+            <div className="photo" aria-label="Photo of the broken bracket" role="img">
+              <svg viewBox="0 0 80 60" width="72" height="54" aria-hidden><rect width="80" height="60" rx="6" fill="#eceef2" /><path d="M14 46 L14 16 L40 16 L40 26 L26 26 L26 46 Z" fill="#8a93a3" /><path d="M30 18 l6 8 l-3 2 l4 6" stroke="#b42318" strokeWidth="2" fill="none" /><circle cx="20" cy="40" r="3" fill="#eceef2" /></svg>
               <small>photo.jpg</small>
             </div>
-            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} />
+            <textarea aria-label="Rush request text" value={text} onChange={(e) => setText(e.target.value)} rows={5} />
           </div>
-          <div className="chips">
+          <div className="chips" role="group" aria-label="Sample requests">
             {RUSH_SAMPLES.map((s) => <button key={s.label} className="chip" onClick={() => { setText(s.text); onPrime?.(); }}>{s.label}</button>)}
           </div>
-          <button id="read-request" className={`btn ${primed || rush ? 'primary' : 'ghost dark'}`} disabled={!!busy} onClick={() => run('intake', '/api/rush/intake', { text })}>
+          <button id="read-request" className={`btn block ${primed || rush ? 'primary' : 'ghost dark'}${busy === 'intake' ? ' is-busy' : ''}`} disabled={!!busy || !text.trim()} onClick={() => run('intake', '/api/rush/intake', { text })}>
             {busy === 'intake' ? 'Agent is reading…' : 'Let Takt read it'}
           </button>
-          {state.intakeQuestion && !rush && (
-            <p className="callout warn" role="alert">
-              <b>Takt needs the owner:</b> it could not find the {state.intakeQuestion.missing.join(', ') || 'job details'} in this request, so nothing was planned and no order was invented.
-              Add them (for example "6 brackets S355 8 mm by Tuesday") and try again.
+          {busy === 'intake' && <Working title="Claude is reading the request and recording the job…" lines={4} />}
+          {state.intakeQuestion && !rush && busy !== 'intake' && (
+            <p className="callout warn icon" role="alert">
+              <span className="ci" aria-hidden>?</span>
+              <span><b>Takt needs a bit more.</b> It could not find the {state.intakeQuestion.missing.join(', ') || 'job details'} in this request, so nothing was planned and no order was invented.
+              Add them (for example "6 brackets S355 8 mm by Tuesday") and try again.</span>
             </p>
           )}
-          {rush && (
+          {rush && busy !== 'intake' && (
             <div className="extracted">
+              <div className="job-head">
+                <b>{rush.qty}× {rush.title}</b>
+                <small>{rush.customer.name}, {rush.customer.city} · {rush.material}</small>
+              </div>
               <div className="kv"><span>Extracted by</span><AgentTag by={rush.extractedBy} state={state} /></div>
               <div className="kv"><span>Customer</span><b>{rush.customer.name}, {rush.customer.city}</b></div>
-              <div className="kv"><span>Part</span><b>{rush.qty}× {rush.title} · {rush.material}</b></div>
               <div className="kv"><span>Routing</span><b>{rush.ops.map((o) => `${o.label} ${o.hours} h (${MACHINE_SHORT[o.machineId] ?? o.machineId})`).join(' → ')}</b></div>
               <div className="kv"><span>Needed by</span><b>{dayLong(state.boardStartIso, rush.dueDay)} evening</b></div>
-              <div className="kv"><span>Base price</span><b>{chf(rush.basePriceChf)}</b> <small className="muted">rate card, not AI</small></div>
+              <div className="kv"><span>Base price</span><b>{chf(rush.basePriceChf)} <small className="muted">· rate card, not AI</small></b></div>
               {rush.firstFitDay !== undefined && rush.firstFitDay > rush.dueDay ? (
-                <p className="callout warn">If nobody moves, this job ships <b>{dayLong(state.boardStartIso, rush.firstFitDay)}</b>: too late for {dayLong(state.boardStartIso, rush.dueDay)}. Takt can ask customers who said they are flexible to wait, for money.</p>
+                <p className="callout warn icon"><span className="ci" aria-hidden>!</span><span>If nobody moves, this job ships <b>{dayLong(state.boardStartIso, rush.firstFitDay)}</b>: too late for {dayLong(state.boardStartIso, rush.dueDay)}. Takt can ask customers who said they are flexible to wait, for money.</span></p>
               ) : (
-                <p className="callout good">There is free capacity: it ships {rush.firstFitDay !== undefined ? dayLong(state.boardStartIso, rush.firstFitDay) : 'in time'} without moving anyone.</p>
+                <p className="callout good icon"><span className="ci" aria-hidden>✓</span><span>There is free capacity: it ships {rush.firstFitDay !== undefined ? dayLong(state.boardStartIso, rush.firstFitDay) : 'in time'} without moving anyone.</span></p>
               )}
-              <button className="btn accent" disabled={!!busy} onClick={() => run('plan', '/api/rush/plan')}>
+              <button className={`btn primary${busy === 'plan' ? ' is-busy' : ''}`} disabled={!!busy} onClick={() => run('plan', '/api/rush/plan')}>
                 {busy === 'plan' ? 'Planner + agent working…' : 'Make room'}
               </button>
+              {busy === 'plan' && <Working title="The planner compares options; Claude chooses whom to ask and writes the offers…" lines={3} />}
             </div>
           )}
         </section>
       )}
 
       {stage === 'planned' && plan && (
-        <section className="card">
-          <h2>{plan.feasible ? 'Takt can make room' : 'No room'}</h2>
+        <section className="card step-card" key="planned">
+          <h2 tabIndex={-1}>{plan.feasible ? 'Takt can make room' : 'No room this time'}</h2>
+          {plan.feasible ? (
+            <div className="stats">
+              <Stat label="Rush price" value={chf(plan.rushPriceChf)} note={`premium ${chf(plan.rushPremiumChf)}`} />
+              <Stat label="Compensation" value={`−${chf(plan.compensationTotalChf)}`} note={`cap ${chf(plan.budgetCapChf)} (code)`} />
+              <Stat label="Net uplift" value={fmtSigned(plan.netUpliftChf)} note="nobody let down" className="net" />
+            </div>
+          ) : (
+            <p className="callout warn icon"><span className="ci" aria-hidden>!</span><span>{plan.reason || 'No combination of flexible customers frees the slot in time without breaking a firm promise.'} The details below show what the planner tried.</span></p>
+          )}
+          {plan.offers.length > 0 && (
+            <>
+              <p className="section-label">Who is asked to wait</p>
+              <div className="who-list">
+                {plan.offers.map((o) => (
+                  <div key={o.id} className="offer-row">
+                    <b>{customer(o.customerId)?.name}</b> <span className="lang">{o.lang.toUpperCase()}</span>
+                    <span className="when">+{plural(o.delayDays, 'day')} · {chf(o.compensationChf)}</span>
+                    <span className="pp-tag">{o.mechanism === 'reduced-capture' ? 'capture less' : 'Payout'}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           {plan.justification && (
             <div className="why">
               <div className="why-head"><b>Why these customers</b><AgentTag by={plan.chosenBy} state={state} /></div>
@@ -260,7 +356,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
                   {plan.options.map((o) => (
                     <tr key={o.optionId} className={o.optionId === plan.chosenOptionId ? 'chosen' : ''}>
                       <td>{o.optionId}{o.optionId === plan.chosenOptionId ? ' ✓' : ''}</td>
-                      <td>{o.bumps.map((b) => state.customers.find((c) => c.id === b.customerId)?.name ?? b.customerId).join(', ') || '—'}</td>
+                      <td>{o.bumps.map((b) => customer(b.customerId)?.name ?? b.customerId).join(', ') || '—'}</td>
                       <td>{chf(o.compensationTotalChf)}</td>
                       <td>+{chf(o.netUpliftChf)}</td>
                     </tr>
@@ -270,21 +366,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
             )}
             <ul className="explain">{plan.explanation.map((e, i) => <li key={i}>{e}</li>)}</ul>
           </details>
-          {plan.offers.map((o) => {
-            const c = state.customers.find((x) => x.id === o.customerId)!;
-            return (
-              <div key={o.id} className="offer-row">
-                <b>{c.name}</b> <span className="lang">{o.lang.toUpperCase()}</span>
-                <span>+{o.delayDays} d · {chf(o.compensationChf)}</span>
-                <span className="pp-tag">{o.mechanism === 'reduced-capture' ? 'capture less' : 'Payout'}</span>
-              </div>
-            );
-          })}
-          <div className="kv total"><span>Rush price</span><b>{chf(plan.rushPriceChf)}</b></div>
-          <div className="kv"><span>Compensation budget (code cap)</span><b>{chf(plan.budgetCapChf)}</b></div>
-          <div className="kv total"><span>Net uplift</span><b className="good">+{chf(plan.netUpliftChf)}</b></div>
           {plan.feasible && (
-            <button className="btn primary cta-sticky" disabled={!!busy} onClick={() => run('send', '/api/offers/send')}>
+            <button className={`btn primary block cta-sticky${busy === 'send' ? ' is-busy' : ''}`} disabled={!!busy} onClick={() => run('send', '/api/offers/send')}>
               {plan.offers.length ? `Send ${plan.offers.length} offer${plan.offers.length > 1 ? 's' : ''}` : 'Book the rush (nobody moves)'}
             </button>
           )}
@@ -292,35 +375,48 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       )}
 
       {stage === 'awaiting-approval' && plan && state.approval && (
-        <section className="card approval">
-          <h2>Approve money moves</h2>
+        <section className="card step-card approval" key="approval">
+          <h2 tabIndex={-1}>Approve money moves</h2>
           <p className="muted">Everyone agreed. Nothing has reached PayPal yet: you approve every move first.</p>
+          <div className="stats">
+            <Stat label="Compensation" value={`−${chf(plan.compensationTotalChf)}`} note={plural(plan.offers.length, 'customer')} />
+            <Stat label="Rush hold" value={chf(plan.rushPriceChf)} note="PayPal authorization" />
+            <Stat label="Net uplift" value={fmtSigned(plan.netUpliftChf)} className="net" />
+          </div>
           <ul className="moves">
             {state.approval.moves.map((m) => (
               <li key={m.id}>
+                <span className="mv-ico" aria-hidden>{MOVE_ICON[m.kind] ?? '·'}</span>
                 <div><b>{m.kind === 'payout' ? 'Payout' : m.kind === 'capture-less' ? 'Capture less' : 'Rush authorization'}</b> · {m.customerName}</div>
                 <div className="amt">{m.kind === 'rush-authorize' ? '' : '−'}{chf(m.amountChf)}</div>
                 <small><code>{m.api}</code> {m.detail}</small>
               </li>
             ))}
           </ul>
-          <ul className="checks">
-            {state.approval.checks.map((c) => <li key={c.label} className={c.ok ? 'ok' : 'fail'}>{c.ok ? '✓' : '✗'} {c.label}</li>)}
-          </ul>
-          <button className="btn primary cta-sticky" id="approve-moves" disabled={!!busy || !state.approval.checks.every((c) => c.ok)} onClick={() => run('approve', '/api/approval/approve')}>
+          <GuardrailChecks checks={state.approval.checks} />
+          <button className={`btn primary block cta-sticky${busy === 'approve' ? ' is-busy' : ''}`} id="approve-moves" disabled={!!busy || !state.approval.checks.every((c) => c.ok)} onClick={() => run('approve', '/api/approval/approve')}>
             {busy === 'approve' ? 'Moving money…' : 'Approve & send to PayPal'}
           </button>
         </section>
       )}
 
       {(stage === 'offers-sent' || stage === 'awaiting-approval') && plan && (
-        <section className="card">
-          <h2>{stage === 'offers-sent' ? 'Waiting for answers' : 'Answers'}</h2>
-          <p className="muted">Each customer gets a one-page offer in their language. They tap a button or answer in their own words; the agent reads the reply, code checks the caps.</p>
+        <section className={`card${stage === 'offers-sent' ? ' step-card' : ''}`} key="answers">
+          {stage === 'offers-sent' ? <h2 tabIndex={-1}>Waiting for answers</h2> : <h3>Customer answers</h3>}
+          {stage === 'offers-sent' && <p className="muted">Each customer gets a one-page offer in their language. They tap a button or answer in their own words; the agent reads the reply, code checks the caps.</p>}
+          <div className="answer-status" aria-live="polite">
+            {plan.offers.map((o) => (
+              <div key={o.id} className="offer-row">
+                <b>{customer(o.customerId)?.name}</b>
+                <span className="when">{chf(o.compensationChf)}</span>
+                <span className={`st ${o.status === 'sent' ? 'waiting' : o.status}`}>{o.status === 'sent' ? (o.escalation ? 'needs you' : 'waiting') : o.status === 'accepted' ? '✓ agreed' : o.status}</span>
+              </div>
+            ))}
+          </div>
           <div className="phones">
             {plan.offers.map((o) => (
               <div key={o.id} className="phone-wrap">
-                <a className="open-phone" href={`#/offer/${o.id}`} target="_blank" rel="noreferrer">Open {state.customers.find((c) => c.id === o.customerId)?.name}'s page on a phone ↗</a>
+                <a className="open-phone" href={`#/offer/${o.id}`} target="_blank" rel="noreferrer">Open {customer(o.customerId)?.name}'s page on a phone ↗</a>
                 <OfferCard offer={o} state={state} onState={onState} />
               </div>
             ))}
@@ -329,14 +425,28 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       )}
 
       {(stage === 'awaiting-payment' || stage === 'committed') && plan && (
-        <section className="card">
-          <h2>{stage === 'committed' ? 'Schedule committed' : 'Rush customer approves'}</h2>
+        <section className="card step-card" key={stage}>
+          <h2 tabIndex={-1}>{stage === 'committed' ? 'Schedule committed' : 'Rush customer approves'}</h2>
           {stage === 'awaiting-payment' && (
             <>
               <p className="muted">{rush?.customer.name} gets a PayPal checkout for {chf(plan.rushPriceChf)} (intent AUTHORIZE: a hold, charged at shipment). The schedule changes only when PayPal confirms the authorization.</p>
               <div className="phone-wrap">
                 <a className="open-phone" href="#/pay" target="_blank" rel="noreferrer">Open {rush?.customer.name}'s checkout on a phone ↗</a>
                 <RushCheckout state={state} onState={onState} />
+              </div>
+            </>
+          )}
+          {stage === 'committed' && (
+            <>
+              <div className="committed-hero" role="status">
+                <span className="big-check" aria-hidden>✓</span>
+                <b>Confirmed by PayPal.</b>
+                <span>Nobody let down: {plural(plan.offers.length, 'customer')} agreed and {plan.offers.length === 1 ? 'is' : 'are'} compensated.</span>
+              </div>
+              <div className="stats">
+                <Stat label="Rush premium" value={chf(plan.rushPremiumChf)} />
+                <Stat label="Compensation" value={`−${chf(plan.compensationTotalChf)}`} />
+                <Stat label="Net uplift" value={fmtSigned(plan.netUpliftChf)} className="net" />
               </div>
             </>
           )}
@@ -348,22 +458,26 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
           )}
           {stage === 'committed' && (
             <>
-              <p className="callout good">Confirmed by PayPal. Nobody let down: {plural(plan.offers.length, 'customer')} agreed and {plan.offers.length === 1 ? 'is' : 'are'} compensated.</p>
               <h3>Settle</h3>
-              <p className="muted small">Each job shows every PayPal object it touched. "Check in PayPal" reads the current status straight from the API.</p>
+              <p className="muted small">Ship a job and PayPal captures what was agreed. Each job shows every PayPal object it touched; "Check in PayPal" reads the live status from the API.</p>
               <div className="settle">
                 {state.jobs.filter((j) => (j.rush || j.compensationChf) && (j.status !== 'cancelled' || j.rush)).map((j) => (
                   <SettleJob key={j.id} job={j} state={state} busy={busy} run={run} />
                 ))}
               </div>
               {state.jobs.some((j) => j.rush && j.status === 'cancelled') && (
-                <p className="callout warn small">The rush was cancelled: its premium is gone, but the customers who moved keep their compensation and new dates. They waited in good faith.</p>
+                <p className="callout warn small" role="status">The rush was cancelled: its premium is gone, but the customers who moved keep their compensation and new dates. They waited in good faith.</p>
               )}
             </>
           )}
         </section>
       )}
-      {err && <p className="callout bad">{err}</p>}
+      {err && (
+        <p className="callout bad icon" role="alert">
+          <span className="ci" aria-hidden>!</span>
+          <span><b>That step didn't go through.</b> {err} Your demo is safe: try again, or use Reset demo to start over.</span>
+        </p>
+      )}
     </aside>
   );
 }
