@@ -1,6 +1,6 @@
 # Deploying Takt on Render
 
-Status: **plan only.** `render.yaml` is in the repo; nothing is deployed and no Render account has been created yet. Creating the account, choosing the plan and spending hackathon credits are Francisco's decisions.
+Status: **live** at https://takt-oso2.onrender.com since 8 Nov 2026 (Blueprint from this repo, Frankfurt, plan Free until the hackathon credits are applied). Demo path verified end-to-end against the PayPal sandbox (21/21 checks, smoke 16/16).
 
 ## What gets deployed
 

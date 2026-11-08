@@ -6,9 +6,26 @@ When a job shop's schedule is full and a rush order arrives, Takt makes room. It
 > - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It also writes the offer when the owner drags a job on the board. It scores 20/20 on the eval.
 > - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock. The rush customer pays with the **PayPal JS SDK v6** button (redirect as fallback), and every job shows its PayPal timeline: order, approval, authorization, capture, void, refund, payout, each with its PayPal id.
 > - **Timeline:** Bryntum Scheduler Pro (trial). Machines are resources, operations are events with cut → bend dependencies, a resource histogram shows the laser and press brake at 100 %, the agent's proposal appears as ghost events, and the accepted plan slides in when PayPal confirms. Drag a booked job later: Takt prices the move, Claude writes the offer, and it runs the same customer consent → owner approval → PayPal path before the bar really moves.
-> - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state. Render plan and `render.yaml`: [docs/DEPLOY.md](docs/DEPLOY.md) (not deployed yet).
+> - **Hosting-ready:** each browser gets its own demo shop (cookie session, 2 h TTL), so judges never share or reset each other's state. Hosted on Render: see **Try it** below and [docs/DEPLOY.md](docs/DEPLOY.md).
 
 ![Cold open: the laser and press brake are full, a rush email arrives](docs/screenshots/0-cold-open.png)
+
+## Try it (hosted demo)
+
+**https://takt-oso2.onrender.com** (PayPal **sandbox**, test money only). Each browser gets its own demo shop.
+
+| | |
+|---|---|
+| PayPal sandbox buyer | `sb-rgdtm53776614@personal.example.com` |
+| Password | `K)5@3_wr` |
+| Or pay as guest (on the PayPal page) | card `4005519200000004`, any future expiry, CVV `123` |
+
+These are PayPal **sandbox** test credentials: they hold fake money and cannot touch real funds.
+
+Path: **Open request** → **Let Takt read it** → **Make room** → **Send 2 offers** → answer on the two phones (chips under "Demo helper") → **Approve & send to PayPal** → **Pay with PayPal** (log in with the buyer above in the popup) → **Schedule committed** → Ship / Check in PayPal / Cancel rush (void).
+Board move: drag Atelier Rochat's bend bar two days later → **Send offer** → accept on the phone → **Approve & send to PayPal** → the bar slides; Ship captures CHF 70 less.
+
+If the page takes a moment to load the first time, the server is waking up.
 
 ## Run locally
 
@@ -86,7 +103,7 @@ Payees always come from booking records. Customer text is wrapped as untrusted d
 
 ### Test accounts (sandbox only)
 
-- **Hosted demo:** not deployed yet. The URL and a dedicated sandbox buyer (country Switzerland, English) will be listed here; see [docs/DEPLOY.md](docs/DEPLOY.md#how-judges-test). Sandbox accounts hold test money only.
+- **Hosted demo:** https://takt-oso2.onrender.com with a dedicated sandbox buyer (Switzerland, English); credentials under [Try it](#try-it-hosted-demo). Sandbox accounts hold test money only.
 - **Guest card** on the PayPal page (redirect fallback): `4005519200000004`, any future expiry, CVV `123`.
 
 ## How Bryntum Scheduler Pro is used
