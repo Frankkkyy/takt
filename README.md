@@ -2,7 +2,7 @@
 
 When a job shop's schedule is full and a rush order arrives, Takt makes room. It finds booked customers who can wait, pays them for it through PayPal, and charges the rush customer a premium that covers the compensation. The schedule only changes when PayPal confirms the money moves.
 
-> Status: phase 2.
+> What is built (all of it runs in the hosted demo):
 > - **AI:** a Claude Haiku 5.5 agent with tool use reads rush requests, picks whom to ask, writes the offers and negotiates replies, inside code-enforced guardrails and an owner approval step. It also writes the offer when the owner drags a job on the board. It scores 20/20 on the eval.
 > - **PayPal:** runs against the real sandbox (verified end-to-end in CHF) or an offline mock. The rush customer pays with the **PayPal JS SDK v6** button (redirect as fallback), and every job shows its PayPal timeline: order, approval, authorization, capture, void, refund, payout, each with its PayPal id.
 > - **Timeline:** Bryntum Scheduler Pro (trial). Machines are resources, operations are events with cut → bend dependencies, a resource histogram shows the laser and press brake at 100 %, the agent's proposal appears as ghost events, and the accepted plan slides in when PayPal confirms. Drag a booked job later: Takt prices the move, Claude writes the offer, and it runs the same customer consent → owner approval → PayPal path before the bar really moves.
@@ -71,6 +71,8 @@ Takt's agent is **Claude Haiku 5.5** (`claude-haiku-5-5`), called through the An
 - margin floor of CHF 150;
 - delivery dates no earlier than the planner allows;
 - no CHF amount above the cap in any message.
+
+**Who did what, on screen.** A dark strip under the board labels the last three beats as **Claude** (reads & writes), **Code** (does the numbers), **Owner** (decides) or **PayPal** (moves money), built from the same ledger as the PayPal & agent log.
 
 Payees always come from booking records. Customer text is wrapped as untrusted data. **No money moves until the shop owner clicks "Approve & send to PayPal"**, and the checks are re-run at that moment. Every tool call, guardrail rejection, approval and PayPal call appears in the **PayPal & agent log**.
 
