@@ -215,3 +215,28 @@ At 390 px the offer page draws a phone frame inside the phone, which costs about
 
 #### B20 — minor — PayPal page language
 The approval page opens in German (`s2-paypal-login.png`). For an English video, pass `experience_context.locale` (e.g. `en-CH`).
+
+## Judge pass 2026-11-08 night (branch `polish-2`, after the Render deploy)
+
+**Setup.** Fresh Playwright Chromium against https://takt-oso2.onrender.com (sandbox) at 1440×900, 1280×720 and the phone pages at 390×844, stopping before the owner's money approval. The steps after approval ran locally: `npm start` with `ANTHROPIC_API_KEY= AGENT_CACHE=replay-only PAYPAL_MODE=mock PORT=8797`. 0 console errors on both.
+
+Fixed:
+| # | Issue | Fix |
+|---|---|---|
+| J1 | The Claude / Code strip labelled Claude's reading of the request as **Code** ("Code · read the DE request → …"): the split the strip exists to show was wrong on its first line | The intake detail starts with "Read by Claude…"; the strip now recognises it |
+| J2 | The strip repeated beats: "rush payment authorized" + PayPal's webhook "authorization created" for the same id; "read Rochat's reply: yes · CHF 70" after "agreed Rochat's counter" pushed the counter and the cap check out of the last three | Echo events are skipped |
+| J3 | First screen told two stories: the banner shows the German email, the request panel was pre-filled with the English web form | The panel starts with the same German email (chips unchanged) |
+| J4 | Yield tiles read "−CHF 0" before anything happened | No sign on zero |
+| J5 | 1280×720 / 1440×900: after answering on the phones (bottom of the column), "Approve & send to PayPal" is far above with no hint; after paying in the inline checkout the committed card is above the fold | An amber pill ("↑ Everyone agreed: review and approve", "↑ PayPal confirmed: schedule committed") appears while the target is off screen, until it has been seen once; click scrolls to it. The page never scrolls by itself, so the scripted runs are unaffected |
+| J6 | 390 px owner console: page 16 px wider than the screen (the cold-open email slides in from +60 px), so the phone zoomed out; the board's drag hint did not wrap | `.story` clips its overflow on phones; the hint wraps |
+| J7 | 390 px `#/pay` and expired offer pages: the empty-state card sat flush left with no gutter | Centred with side gutters |
+| J8 | README opened with "Status: phase 2." | Removed; the strip is described under "How AI is used" |
+
+Not fixed (author's call or out of scope):
+- **Ship removes the job from the board and re-packs the week** (`doShip` re-runs the scheduler on booked jobs only): after "Ship J-2044" Rochat's bars vanish and other bars move earlier, the press brake drops to 81 % on Wednesday. Reads as "the schedule changed" at the payoff moment. Server logic, not touched.
+- Rush job id `R-590799` looks random next to `J-2044`. Display of a server id, left.
+- DEVPOST.md says "24 booked jobs"; the app logs "27 booked jobs on 4 machines". DEVPOST still has `[PENDING DEPLOY]` markers, and its quote "Atelier Rochat is flexible up to 4 days" does not match the recorded justification ("one day, exhibition is three weeks away").
+- README publishes the sandbox buyer's password; DEVPOST's notes say to keep it in Devpost's private testing field. Anyone could change that password and lock judges out.
+- `docs/screenshots/` predates these fixes (J1–J4 visible in `0-cold-open`, `1-intake`, `3c-owner-approval`).
+
+Evidence: `npm run typecheck` clean · `npm test` 49/49 · `npm run agent:eval` (replay-only) 20/20, 0 live calls · `npm run build` clean · `npm run screenshot` (mock, `npm start` on :8797) **18/18**, 0 console errors · 390 px owner console `scrollWidth` 390 (was 406). API spend: USD 0.
