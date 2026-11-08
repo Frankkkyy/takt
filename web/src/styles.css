@@ -98,9 +98,11 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background:
 
 .flow { display: flex; flex-direction: column; gap: 12px; }
 .steps { display: flex; gap: 4px; list-style: none; padding: 0; margin: 0; font-size: 11px; }
-.steps li { flex: 1; text-align: center; padding: 6px 2px; border-radius: 6px; background: #e8ecf2; color: var(--muted); }
+.steps li { flex: 1 1 auto; text-align: center; padding: 6px 4px; border-radius: 6px; background: #e8ecf2; color: #4a5566; white-space: nowrap; }
 .steps li.active { background: var(--navy); color: #fff; }
-.steps li.done { background: #d8f3e4; color: var(--good); }
+.steps li.done { background: #d8f3e4; color: #17633f; }
+/* panel intro lines read like the rest of the panel text, not as a larger grey lead */
+.card > p.muted:not(.small) { margin: 0; font-size: 13px; line-height: 1.45; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .card h2 { margin: 0; font-size: 18px; }
 .card h3 { margin: 6px 0 0; font-size: 14px; }

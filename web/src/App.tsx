@@ -27,7 +27,8 @@ function Story({ state, onOpen }: { state: DemoState; onOpen: () => void }) {
   return (
     <section className="story" aria-label="Start: the shop is full">
       <div className="story-clock">Friday, 15:00 · Werkstatt Reuss, Emmen LU · 12 people, 4 machines</div>
-      <h1>{cap ? <>The laser and press brake are full until {dayLong(state.boardStartIso, cap.nextFreeDay)}.</> : 'The shop is fully booked.'}</h1>
+      {/* Code-checked claim: week 1 of the seed has the laser and the press brake at 100 % (the 2-week view shows gaps later). */}
+      <h1>{cap && cap.week1Pct.LAS1 >= 100 && cap.week1Pct.PB1 >= 100 ? 'The laser and press brake are booked all week.' : 'The shop is nearly fully booked this week.'}</h1>
       {cap && (
         <div className="util">
           {state.machines.map((m) => (
