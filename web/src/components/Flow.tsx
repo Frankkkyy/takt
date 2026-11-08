@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DemoState, Job } from '../../../shared/types';
 import { chf, dayLong, MACHINE_SHORT, plural, post } from '../api';
 import { OfferCard, withParagraphs } from './Offer';
@@ -11,6 +11,32 @@ function AgentTag({ by, state }: { by: 'llm' | 'deterministic'; state: DemoState
   return by === 'llm'
     ? <span className="agent-tag llm">Claude {a.model.replace('claude-', '').replace(/-(\d)-(\d)$/, ' $1.$2').replace(/^\w/, (c) => c.toUpperCase())}{how && how !== 'fallback' ? ` · ${how}` : ''}</span>
     : <span className="agent-tag rules">rules{a.last === 'fallback' ? ' · fallback' : ''}</span>;
+}
+
+/** Long agent text, shown as a quote clamped to a few lines with "Read all"; the recorded text is never shortened. */
+function ClampedQuote({ text, lines = 3 }: { text: string; lines?: number }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setOverflows(open || el.scrollHeight > el.clientHeight + 2);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text, open]);
+  return (
+    <>
+      <p ref={ref} className={`quote${open ? '' : ' clamped'}`} style={{ WebkitLineClamp: open ? undefined : lines }}>{text}</p>
+      {overflows && (
+        <button type="button" className="link small more-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+          {open ? 'Show less' : 'Read all'}
+        </button>
+      )}
+    </>
+  );
 }
 
 const STEPS: { key: DemoState['stage'][]; label: string }[] = [
@@ -341,7 +367,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
           {plan.justification && (
             <div className="why">
               <div className="why-head"><b>Why these customers</b><AgentTag by={plan.chosenBy} state={state} /></div>
-              <p>{plan.justification}</p>
+              <ClampedQuote text={plan.justification} />
             </div>
           )}
           <details className="more" open={!plan.feasible}>

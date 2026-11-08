@@ -474,6 +474,11 @@ textarea:focus-visible { border-color: var(--accent-strong); }
 .why-head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); }
 .why p { margin: 6px 0 0; line-height: 1.5; color: var(--n-700); }
 .move-card .why p { white-space: pre-line; }
+/* Claude's reasoning as a quote: three lines, "Read all" for the rest */
+.why p.quote { position: relative; margin: 8px 0 0; padding-left: 12px; border-left: 2px solid #b7a6f2; font-size: 13px; line-height: 1.5; color: var(--n-700); }
+.why p.quote.clamped { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.why .more-toggle { display: inline-block; margin: 4px 0 0 12px; color: var(--ai); font-weight: 600; text-decoration: none; }
+.why .more-toggle:hover { color: var(--ai); text-decoration: underline; }
 table.options { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .options th { text-align: left; color: var(--n-500); font-weight: 600; border-bottom: 1px solid var(--n-200); padding: 4px; }
 .options td { padding: 5px 4px; border-bottom: 1px solid var(--n-100); }
