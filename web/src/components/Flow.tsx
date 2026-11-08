@@ -175,10 +175,10 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
         {!open && <button className="close" aria-label="Dismiss" onClick={() => setHidden(m.id)}>×</button>}
       </div>
       <Stepper steps={MOVE_STEPS} active={active} mini label="Board move progress" />
-      <div className="kv"><span>Delivery</span><b>{dayLong(state.boardStartIso, r.fromDay)} → {dayLong(state.boardStartIso, o?.toDay ?? r.toDay)}</b>{o && <small className="muted">promised {dayLong(state.boardStartIso, r.dueDay)}</small>}</div>
-      {r.frees && <div className="kv"><span>Why</span><b>It {r.frees}</b></div>}
+      <div className="kv kv-left"><span>Delivery</span><b>{dayLong(state.boardStartIso, r.fromDay)} → {dayLong(state.boardStartIso, o?.toDay ?? r.toDay)}</b>{o && <small className="muted">promised {dayLong(state.boardStartIso, r.dueDay)}</small>}</div>
+      {r.frees && <div className="kv kv-left"><span>Why</span><span className="kv-text">It {r.frees}</span></div>}
       {o && (
-        <div className="kv"><span>Compensation</span><b>{chf(o.compensationChf)}</b><span className="pp-tag">{o.mechanism === 'reduced-capture' ? 'capture less' : 'Payout'}</span><small className="muted">cap {chf(o.capChf)} (code)</small></div>
+        <div className="kv kv-left"><span>Compensation</span><b>{chf(o.compensationChf)}</b><span className="pp-tag">{o.mechanism === 'reduced-capture' ? 'capture less' : 'Payout'}</span><small className="muted">cap {chf(o.capChf)} (code)</small></div>
       )}
       {m.stage === 'drafted' && o && (
         <>

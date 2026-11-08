@@ -246,6 +246,12 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .kv > span:first-child { color: var(--n-500); white-space: nowrap; }
 .kv b { text-align: right; }
 .kv.total { font-size: var(--fs-md); }
+/* move card: label column, values read left to right (the Why line is a sentence, in body weight) */
+.kv.kv-left { justify-content: flex-start; gap: 2px var(--sp-3); flex-wrap: wrap; }
+.kv.kv-left > span:first-child { min-width: 92px; }
+.kv.kv-left b { text-align: left; white-space: nowrap; }
+.kv.kv-left > small { margin-left: auto; white-space: nowrap; }
+.kv .kv-text { flex: 1 1 0; min-width: 160px; color: var(--n-700); line-height: 1.45; text-wrap: pretty; }
 
 /* ---------- progress stepper ---------- */
 .steps { display: flex; list-style: none; padding: 0; margin: 0; counter-reset: step; }
@@ -334,6 +340,9 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
   --b-grid-cell-border-color: var(--n-200);
   --b-grid-row-border-color: var(--n-200);
   --b-grid-cell-hover-background: transparent;
+  --b-grid-cell-selected-background: var(--n-50);
+  --b-grid-cell-hover-selected-background: var(--n-50);
+  --b-grid-cell-selected-color: var(--n-900);
   --b-grid-splitter-color: var(--n-200);
   --b-grid-splitter-narrow-color: var(--n-200);
   --b-column-lines-tick-color: #eef0f3;
