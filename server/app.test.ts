@@ -408,3 +408,52 @@ test('rush cancelled after shipment: capture refunded in full; "Check in PayPal"
   await wait(40);
   assert.ok(payoutJob.paypal!.some((s) => s.idKind === 'payout-batch' && s.source === 'confirmed' && s.status === 'SUCCESS'), 'payout confirmation on the job timeline');
 });
+
+test('Ship keeps the shipped job on the board in its slot, marked shipped; no other job moves', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  await toCommitted(app);
+  const slots = (s = app.state.schedule) => new Map(s.ops.map((o) => [`${o.jobId}|${o.machineId}`, `${o.start}-${o.end}`]));
+  // Ship every job Settle offers (rush + bumped with an authorization), one at a time, in board order.
+  const toShip = app.state.jobs.filter((j) => j.payment.kind === 'authorization' && (j.rush || j.compensationChf));
+  assert.ok(toShip.length >= 2);
+  const before = slots();
+  const timingBefore = structuredClone(app.state.schedule.timing);
+  for (const j of toShip) {
+    await app.ship(j.id);
+    assert.equal(j.status, 'shipped');
+    assert.deepEqual(slots(), before, `after shipping ${j.id}, every bar (shipped or not) is where it was`);
+    assert.deepEqual(app.state.schedule.timing, timingBefore);
+    assert.ok(app.state.schedule.ops.some((o) => o.jobId === j.id), `${j.id} is still on the board`);
+  }
+  // A fresh schedule over the same jobs reproduces the board exactly (shipped slots are fixed, not dropped).
+  assert.deepEqual(slots(schedule(app.state.jobs)), before);
+  // The board still works afterwards: a booked job can be moved, a shipped one cannot; shipped bars never move.
+  const shipped = new Map(app.state.schedule.ops.filter((o) => toShip.some((j) => j.id === o.jobId)).map((o) => [`${o.jobId}|${o.machineId}`, `${o.start}-${o.end}`]));
+  await assert.rejects(() => app.reviewMove(toShip.find((j) => !j.rush)!.id, 1), /No booked job/);
+  const review = await app.reviewMove('J-2049', 1);
+  assert.notEqual(review.verdict, 'refused');
+  if (review.offer) { await app.sendMoveOffer(); await app.respond(app.state.move!.offer!.id, true); }
+  await app.approveMove();
+  assert.equal(app.state.move!.stage, 'committed');
+  for (const [k, v] of shipped) assert.equal(slots().get(k), v, `${k} stays put after a board move`);
+  assert.ok(Object.values(app.state.schedule.timing).every((t) => !t.late));
+  // And a refund (parts returned) takes the rush off the board; the other shipped bar stays.
+  const rush = toShip.find((j) => j.rush)!;
+  await app.refund(rush.id);
+  assert.ok(!app.state.schedule.ops.some((o) => o.jobId === rush.id));
+  for (const [k, v] of shipped) if (!k.startsWith(rush.id)) assert.equal(slots().get(k), v);
+});
+
+test('Ship, then a second rush: the planner treats shipped slots as fixed (never bumped, never moved)', async () => {
+  const app = new TaktApp(new MockPayPal(5), new DeterministicAgent());
+  await toCommitted(app);
+  await app.ship('J-2044');
+  const fixed = app.state.schedule.ops.filter((o) => o.jobId === 'J-2044').map((o) => `${o.machineId}|${o.start}-${o.end}`);
+  await app.intake(REQUEST);
+  const plan = await app.plan();
+  assert.ok(!plan.offers.some((o) => o.jobId === 'J-2044'), 'a shipped job is never asked to move');
+  for (const g of plan.proposed.ops.filter((o) => o.jobId !== 'J-2044')) {
+    for (const f of plan.proposed.ops.filter((o) => o.jobId === 'J-2044' && o.machineId === g.machineId)) assert.ok(g.end <= f.start || g.start >= f.end, 'no overlap with a shipped slot');
+  }
+  assert.deepEqual(plan.proposed.ops.filter((o) => o.jobId === 'J-2044').map((o) => `${o.machineId}|${o.start}-${o.end}`), fixed);
+});
