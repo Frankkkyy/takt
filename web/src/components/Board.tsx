@@ -55,6 +55,8 @@ interface EventInfo {
   /** Second line of a ghost bar, e.g. "CHF 50" (hidden when the bar is narrow). */
   detail?: string;
   moving?: boolean;
+  /** Shipped: the bar stays in its slot, muted, and can no longer be dragged. */
+  shipped?: boolean;
 }
 
 type PayState = 'authorized' | 'prepaid' | 'rush' | 'compensated';
@@ -132,14 +134,16 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
       payLine: pay.line,
       ids: pay.ids,
       moving: moving || (!!proposal && bumped.has(j.id)),
+      shipped: j.status === 'shipped',
     };
+    if (info.shipped) info.payLine = `Shipped · ${info.payLine.replace(' (captured at shipment)', '')}`;
     out.push({
       id: `${boardKey(j.id)}|${o.machineId}`,
       resourceId: o.machineId,
       startDate: hourToDate(iso, o.start),
       endDate: hourToDate(iso, o.end, true),
       name: `${info.customer} · ${j.id}`,
-      cls: `takt-ev pay-${info.payState}${info.moving ? ' moving' : ''}${bumped.has(j.id) && proposal ? ' bumped' : ''}`,
+      cls: `takt-ev pay-${info.payState}${info.shipped ? ' shipped' : ''}${info.moving ? ' moving' : ''}${bumped.has(j.id) && proposal ? ' bumped' : ''}`,
       info: JSON.stringify(info),
     });
   }
@@ -405,6 +409,7 @@ export function Board({ state, showProposal, onState }: Props) {
           <span><i className="sw pay-prepaid" /> prepaid</span>
           <span><i className="sw pay-compensated" /> compensated</span>
           <span><i className="sw pay-rush" /> rush</span>
+          {state.jobs.some((j) => j.status === 'shipped') && <span><i className="sw shipped-sw" /> ✓ shipped (PayPal captured)</span>}
           {!locked && <span className="hint">Drag a booked job later: Takt reviews the move</span>}
           {prop?.kind === 'rush' && <span><i className="sw ghost-rush-sw" /> proposed rush slot</span>}
           {proposal && (askingCount > 0 || !prop?.offers.length) && <span><i className="sw ghost-bump-sw" /> proposed new slot ({prop?.kind === 'move' && !move?.offer ? 'board move' : 'needs consent'})</span>}
@@ -462,7 +467,7 @@ export function Board({ state, showProposal, onState }: Props) {
           enableDeleteKey={false}
           onBeforeEventDrag={({ eventRecord }) => {
             const i = info(eventRecord as unknown as { get: (f: string) => unknown });
-            return !!i && !i.ghost && i.payState !== 'rush' && !live.current.locked;
+            return !!i && !i.ghost && !i.shipped && i.payState !== 'rush' && !live.current.locked;
           }}
           onBeforeEventDropFinalize={({ context }) => {
             const i = info(context.eventRecord as unknown as { get: (f: string) => unknown });
@@ -506,6 +511,7 @@ export function Board({ state, showProposal, onState }: Props) {
             // Ghosts: a short label that survives a narrow bar ("RUSH", "+1d"); details stay in the tooltip.
             if (i.ghost === 'rush') return `<div class="ev-txt"><b>RUSH</b><span>${enc(i.short)} · ${enc(i.op)}</span></div>`;
             if (i.ghost) return `<div class="ev-txt"><b>${enc(i.badge ?? '')}</b><span>${enc(i.short)}${i.detail ? ` · ${enc(i.detail)}` : ''}</span></div>`;
+            if (i.shipped) return `<div class="ev-txt"><b>✓ shipped</b><span>${enc(i.short)} · ${enc(i.jobId)} · ${enc(i.op)}</span></div>`;
             if (i.payState === 'rush') return `<div class="ev-txt"><b>RUSH</b><span>${enc(i.short)} · ${enc(i.op)} · ${enc(i.title)}</span></div>`;
             return `<div class="ev-txt"><b>${enc(i.short)}</b><span>${enc(i.jobId)} · ${enc(i.op)} · ${enc(i.title)}</span></div>`;
           }}
