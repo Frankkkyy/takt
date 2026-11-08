@@ -302,7 +302,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
           <div className="chips" role="group" aria-label="Sample requests">
             {RUSH_SAMPLES.map((s) => <button key={s.label} className="chip" onClick={() => { setText(s.text); onPrime?.(); }}>{s.label}</button>)}
           </div>
-          <button id="read-request" className={`btn block ${primed || rush ? 'primary' : 'ghost dark'}${busy === 'intake' ? ' is-busy' : ''}`} disabled={!!busy || !text.trim()} onClick={() => run('intake', '/api/rush/intake', { text })}>
+          <button id="read-request" className={`btn block ${primed && !rush ? 'primary' : 'ghost dark'}${busy === 'intake' ? ' is-busy' : ''}`} disabled={!!busy || !text.trim()} onClick={() => run('intake', '/api/rush/intake', { text })}>
             {busy === 'intake' ? 'Agent is reading…' : 'Let Takt read it'}
           </button>
           {busy === 'intake' && <Working title="Claude is reading the request and recording the job…" lines={4} />}

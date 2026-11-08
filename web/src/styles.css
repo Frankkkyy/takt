@@ -100,6 +100,9 @@
 body { margin: 0; background: var(--n-50); overflow-x: hidden; }
 .center { min-height: 100vh; display: grid; place-items: center; padding: var(--sp-4); }
 .muted { color: var(--n-500); }
+/* no orphan words: balanced headings, pretty paragraphs and list items */
+h1, h2, h3, .job-head b, .mail-body b { text-wrap: balance; }
+p, li, .callout, .stat span, .moves small { text-wrap: pretty; }
 p.small, .small { font-size: var(--fs-sm); }
 code { font-family: var(--mono); font-size: var(--fs-xs); background: var(--n-100); color: var(--n-700); padding: 1px 5px; border-radius: var(--r-xs); }
 .num, .yield b, .stat b, .amt { font-variant-numeric: tabular-nums; }
@@ -220,6 +223,8 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .card h2 { margin: 0; font-size: var(--fs-lg); line-height: 1.25; letter-spacing: -0.1px; }
 .card h3 { margin: var(--sp-1) 0 0; font-size: var(--fs-base); }
 .card > p.muted:not(.small) { margin: 0; font-size: 13px; line-height: 1.5; }
+.card > p.muted.small { margin: 0; line-height: 1.5; }
+.card > h3 + p { margin-top: -6px; }
 .card p.intro { margin: -4px 0 0; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .eyebrow { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--n-500); }
