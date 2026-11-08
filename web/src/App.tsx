@@ -317,14 +317,15 @@ function YieldTile({ label, value, sign, className = '' }: { label: string; valu
   return (
     <div className={`${className}${bump ? ' bump' : ''}`}>
       <small>{label}</small>
-      <b>{sign}{chf(Math.abs(v))}</b>
+      <b>{value ? sign : ''}{chf(Math.abs(v))}</b>
     </div>
   );
 }
 
 export function App() {
   const [state, setState] = useState<DemoState | null>(null);
-  const [draft, setDraft] = useState(RUSH_SAMPLES[0].text);
+  // The request panel starts with the same email the cold open shows, so the first screen tells one story.
+  const [draft, setDraft] = useState(STORY_SAMPLE.text);
   // Cold open: one entry point. "Open request" (hero) loads the email into the panel and hands over to
   // "Let Takt read it", which only then becomes the primary button. Counts up so the highlight replays.
   const [primed, setPrimed] = useState(0);
