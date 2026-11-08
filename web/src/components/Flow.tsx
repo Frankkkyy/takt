@@ -122,6 +122,51 @@ function StepHead({ eyebrow, children }: { eyebrow: string; children: ReactNode 
 }
 
 /** Progress stepper: numbered, done steps get a check, the current one is marked for screen readers too. */
+/**
+ * The next action can sit above the fold: the owner answers on the phones at the bottom of the column, then approval
+ * appears at the top; the inline PayPal checkout is replaced by the committed card. A small pill points there until
+ * the target has been on screen once. It never scrolls the page by itself.
+ */
+const CUES: Partial<Record<DemoState['stage'], { target: string; text: string }>> = {
+  'awaiting-approval': { target: '#approve-moves', text: 'Everyone agreed: review and approve' },
+  committed: { target: '.step-card[data-step="committed"] h2', text: 'PayPal confirmed: schedule committed' },
+};
+
+function StepCue({ stage }: { stage: DemoState['stage'] }) {
+  const cue = CUES[stage];
+  const [dir, setDir] = useState<'up' | 'down' | null>(null);
+  useEffect(() => {
+    setDir(null);
+    if (!cue) return;
+    let seen = false;
+    const check = () => {
+      const el = document.querySelector(cue.target);
+      if (!el || seen) return setDir(null);
+      const r = el.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < window.innerHeight) { seen = true; return setDir(null); }
+      setDir(r.bottom <= 0 ? 'up' : 'down');
+    };
+    const t = setTimeout(check, 400); // after the new card has rendered
+    const iv = setInterval(check, 600);
+    window.addEventListener('scroll', check, { passive: true });
+    return () => { clearTimeout(t); clearInterval(iv); window.removeEventListener('scroll', check); };
+  }, [cue]);
+  if (!cue || !dir) return null;
+  return (
+    <button
+      type="button"
+      className={`step-cue ${dir}`}
+      onClick={() => {
+        const el = document.querySelector<HTMLElement>(cue.target);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el?.focus({ preventScroll: true });
+      }}
+    >
+      <span aria-hidden>{dir === 'up' ? '↑' : '↓'}</span> {cue.text}
+    </button>
+  );
+}
+
 function Stepper({ steps, active, mini = false, label }: { steps: { label: string }[]; active: number; mini?: boolean; label: string }) {
   return (
     <ol className={`steps${mini ? ' mini' : ''}`} aria-label={label}>
@@ -361,6 +406,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
   return (
     <aside className="flow" id="flow" ref={ref} aria-label="Current step" tabIndex={-1}>
       <Stepper steps={STEPS} active={active} label="Rush order progress" />
+      <StepCue stage={stage} />
       <FallbackNote state={state} />
       <MoveCard state={state} onState={onState} busy={busy} run={run} />
 

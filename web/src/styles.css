@@ -206,6 +206,11 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 @media (max-width: 1000px) { .main { grid-template-columns: 1fr; } }
 .left { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
 .flow { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; scroll-margin-top: var(--sp-4); }
+.step-cue { position: fixed; right: 24px; z-index: 40; display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font: inherit; font-size: var(--fs-sm); font-weight: 600; box-shadow: var(--sh-3); cursor: pointer; animation: fadeUp 0.3s var(--ease) both; }
+.step-cue.up { top: 16px; }
+.step-cue.down { bottom: 16px; }
+.step-cue:hover { background: var(--accent-hover); }
+.step-cue:focus-visible { outline: none; box-shadow: var(--focus); }
 
 /* ---------- loading, skeletons, empty states ---------- */
 .app-loading { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); color: var(--n-500); }
