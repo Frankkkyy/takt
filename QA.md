@@ -233,7 +233,7 @@ Fixed:
 | J8 | README opened with "Status: phase 2." | Removed; the strip is described under "How AI is used" |
 
 Not fixed (author's call or out of scope):
-- **Ship removes the job from the board and re-packs the week** (`doShip` re-runs the scheduler on booked jobs only): after "Ship J-2044" Rochat's bars vanish and other bars move earlier, the press brake drops to 81 % on Wednesday. Reads as "the schedule changed" at the payoff moment. Server logic, not touched.
+- **Ship removes the job from the board and re-packs the week** (`doShip` re-runs the scheduler on booked jobs only): after "Ship J-2044" Rochat's bars vanish and other bars move earlier, the press brake drops to 81 % on Wednesday. Reads as "the schedule changed" at the payoff moment. Server logic, not touched. **Fixed (author decision 2026-11-08):** a shipped job keeps its slot as a muted striped "✓ shipped" bar (legend entry); nothing else moves.
 - Rush job id `R-590799` looks random next to `J-2044`. Display of a server id, left.
 - DEVPOST.md says "24 booked jobs"; the app logs "27 booked jobs on 4 machines". DEVPOST still has `[PENDING DEPLOY]` markers, and its quote "Atelier Rochat is flexible up to 4 days" does not match the recorded justification ("one day, exhibition is three weeks away").
 - README publishes the sandbox buyer's password; DEVPOST's notes say to keep it in Devpost's private testing field. Anyone could change that password and lock judges out.

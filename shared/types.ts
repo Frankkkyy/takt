@@ -69,6 +69,8 @@ export interface Job {
   paypal?: PayPalStep[];
   /** Rush job only: the capture id once shipped (refund path). */
   captureId?: string;
+  /** Set at shipment: the slot the job had on the board. A shipped job stays there and never moves again. */
+  shippedSlot?: { ops: ScheduledOp[]; timing: JobTiming };
   /** Rush job only: set when the rush was cancelled (void before shipment, refund after). */
   cancelledVia?: 'void' | 'refund';
 }

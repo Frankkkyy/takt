@@ -201,7 +201,8 @@ export class TaktApp {
    * day (ties: the smallest change). Returns undefined when no later slot keeps every other promise.
    */
   private moveSlot(jobId: string, targetDay: number) {
-    const booked = this.state.jobs.filter((j) => j.status === 'booked').sort((a, b) => a.seq - b.seq);
+    // Shipped jobs stay in the order with their fixed slots (see scheduler); only booked work moves.
+    const booked = this.state.jobs.filter((j) => j.status === 'booked' || j.status === 'shipped').sort((a, b) => a.seq - b.seq);
     const i = booked.findIndex((j) => j.id === jobId);
     const fromDay = this.state.schedule.timing[jobId].deliveryDay;
     const rest = booked.filter((j) => j.id !== jobId);
@@ -474,8 +475,8 @@ export class TaktApp {
       extractedBy: res.source === 'live' || res.source === 'replay' ? 'llm' : 'deterministic',
     };
     // Where would it land if nobody moved? (append to the full schedule; code, not AI)
-    const booked = this.state.jobs.filter((j) => j.status === 'booked');
-    rush.firstFitDay = schedule([...booked, rushToJob(rush, 1e9)]).timing[`RUSH-${rush.id}`].deliveryDay;
+    const onBoard = this.state.jobs.filter((j) => j.status !== 'cancelled');
+    rush.firstFitDay = schedule([...onBoard, rushToJob(rush, 1e9)]).timing[`RUSH-${rush.id}`].deliveryDay;
     this.state.rush = rush;
     this.state.plan = undefined;
     this.state.pastOffers = undefined;
@@ -1035,6 +1036,8 @@ export class TaktApp {
       this.step(j.paypal, { label: `Shipped: captured ${fmtChf(amount)}${comp ? ` of ${fmtChf(j.payment.authorizedChf)}; ${fmtChf(comp)} never charged` : ''} (final_capture releases the rest)`, status: cap.status, id: cap.captureId, idKind: 'capture', api: 'POST /v2/payments/authorizations/{id}/capture', amountChf: amount, source: 'call' });
       this.log('api', `Captured ${j.id}`, `POST /v2/payments/authorizations/{id}/capture ${fmtChf(amount)}${comp ? ` (authorized ${fmtChf(j.payment.authorizedChf)}, −${fmtChf(comp)} compensation)` : ''}, final_capture=true`, cap.captureId, amount);
     }
+    // The job stays on the board in the slot it had, marked as shipped; nothing else moves.
+    j.shippedSlot = { ops: this.state.schedule.ops.filter((o) => o.jobId === j.id).map((o) => ({ ...o })), timing: { ...this.state.schedule.timing[j.id] } };
     j.status = 'shipped';
     this.state.schedule = schedule(this.state.jobs);
     return j;

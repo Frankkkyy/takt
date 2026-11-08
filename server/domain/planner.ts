@@ -67,14 +67,16 @@ function subsets<T>(items: T[], max: number): T[][] {
 }
 
 export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest): PlanResult {
-  const booked = jobs.filter((j) => j.status === 'booked').sort((a, b) => a.seq - b.seq);
+  // Shipped jobs stay in the dispatch order with their fixed slots (see scheduler): never bumped.
+  const onBoard = jobs.filter((j) => j.status === 'booked' || j.status === 'shipped').sort((a, b) => a.seq - b.seq);
+  const booked = onBoard.filter((j) => j.status === 'booked');
   const custById = new Map(customers.map((c) => [c.id, c]));
-  const baseline = schedule(booked);
+  const baseline = schedule(onBoard);
   const rushMachines = new Set(rush.ops.map((o) => o.machineId));
   const windowEnd = (rush.dueDay + 1) * 8;
 
   // Where would it fit without bumping anyone? (append at the end)
-  const tail = schedule([...booked, rushToJob(rush, 1e9)]);
+  const tail = schedule([...onBoard, rushToJob(rush, 1e9)]);
   const firstFitDay = tail.timing['RUSH-' + rush.id].deliveryDay;
 
   let evaluated = 0;
@@ -83,11 +85,12 @@ export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest):
     a.compensationTotalChf < b.compensationTotalChf ||
     (a.compensationTotalChf === b.compensationTotalChf && (a.bumps.length < b.bumps.length || (a.bumps.length === b.bumps.length && a.insertAt > b.insertAt)));
 
-  for (let p = 0; p <= booked.length; p++) {
-    const before = booked.slice(0, p);
-    const after = booked.slice(p);
+  for (let p = 0; p <= onBoard.length; p++) {
+    const before = onBoard.slice(0, p);
+    const after = onBoard.slice(p);
     // Only flexible jobs that use a rush machine inside the rush window can usefully give up their slot.
     const pool = before.filter((j) => {
+      if (j.status !== 'booked') return false;
       const c = custById.get(j.customerId);
       if (!c?.flexible) return false;
       return baseline.ops.some((o) => o.jobId === j.id && rushMachines.has(o.machineId) && o.start < windowEnd);
@@ -140,7 +143,7 @@ export function planRush(jobs: Job[], customers: Customer[], rush: RushRequest):
       reason: `No feasible plan: earliest delivery without breaking a firm promise is day ${firstFitDay}`,
       insertAt: -1,
       rushJob: rushToJob(rush, 0),
-      orderedJobs: booked,
+      orderedJobs: onBoard,
       bumps: [],
       rushPriceChf: rush.basePriceChf,
       rushPremiumChf: 0,
