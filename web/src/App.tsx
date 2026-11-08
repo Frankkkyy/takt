@@ -6,6 +6,7 @@ import { OfferPage } from './components/Offer';
 import { RushPayPage } from './components/PayPal';
 import { RUSH_SAMPLES } from './samples';
 import { displayTitle, isPayPalEvent } from './labels';
+import { ClaudeCodeStrip } from './components/Strip';
 
 // Bryntum Scheduler Pro is big; the customer phone pages (#/offer, #/pay) never load it.
 const Board = lazy(() => import('./components/Board').then((m) => ({ default: m.Board })));
@@ -404,6 +405,7 @@ export function App() {
           <Suspense fallback={<div className="board board-loading" role="status"><span className="muted">Loading the shop floor board…</span><div className="sk-line" /><div className="sk-line w80" /><div className="sk-line" /><div className="sk-line w60" /></div>}>
             <Board state={state} showProposal={showProposal} onState={setState} />
           </Suspense>
+          <ClaudeCodeStrip state={state} />
           <Ledger events={state.ledger.slice(0, 40)} />
         </section>
         <Flow state={state} onState={setState} draft={draft} setDraft={setDraft} primed={primed} onPrime={() => setPrimed((n) => n || 1)} />
