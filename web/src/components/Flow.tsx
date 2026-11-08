@@ -261,10 +261,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
 
       {(stage === 'idle' || stage === 'intake') && (
         <section className={`card step-card intake-card${primed ? ' primed' : ''}`} key={`intake-${primed}`}>
-          <div className="card-head">
-            <h2 tabIndex={-1}>Rush request</h2>
-            {rush && <span className="eyebrow">Step 1 of 6</span>}
-          </div>
+          <h2 tabIndex={-1}>Rush request</h2>
           {!primed && !rush && <p className="muted small intro">Start with the email in the banner above (<b>Open request</b>), or paste any request in German, French or English.</p>}
           {!rush && text.startsWith(STORY_FROM) && (
             <div className="mail-from"><span aria-hidden>✉</span><span><b>Thomas Schmid</b> · Hof Schmid (farm), Escholzmatt</span></div>

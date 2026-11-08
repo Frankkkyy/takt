@@ -133,6 +133,7 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .btn.block, .card > .btn.primary, .extracted > .btn { width: 100%; min-height: 46px; font-size: var(--fs-md); }
 .btn.paypal { background: var(--pp-gold); border-color: var(--pp-gold); color: var(--pp-navy); font-weight: 700; border-radius: var(--r-pill); min-height: 46px; }
 .btn.paypal:hover:not(:disabled) { background: #f2b52a; border-color: #f2b52a; }
+.btn.is-busy:disabled { opacity: 0.85; cursor: progress; }
 .btn.is-busy::before { content: ''; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.8s linear infinite; }
 .link, .linkish { background: none; border: 0; color: var(--n-700); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; padding: 0; font: inherit; font-size: var(--fs-sm); align-self: flex-start; }
 .link:hover, .linkish:hover { color: var(--n-900); }
