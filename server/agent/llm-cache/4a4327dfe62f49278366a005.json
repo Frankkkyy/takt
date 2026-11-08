@@ -1,0 +1,51 @@
+{
+ "key": "4a4327dfe62f49278366a005",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:30:23.616Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwHeoraYCzm9hhu4K71",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "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"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01AbQPaRQCnsTyNgyuHdzGne",
+    "name": "draft_move_offer",
+    "input": {
+     "message": "Grüezi Frau Meier\n\nWerkstatt Reuss plant diese Woche die Maschinen neu. Darum möchten wir Ihren Auftrag J-2047 (Lampenschirme) von Mittwoch auf Donnerstag verschieben. Als Entschädigung erhalten Sie CHF 45 per PayPal Payout, da Sie bereits bezahlt haben. Passt Ihnen das nicht, bleibt Ihr Termin am Mittwoch bestehen. Sind Sie einverstanden?",
+     "message_en": "Dear Ms Meier\n\nWerkstatt Reuss is re-planning its machines this week, so we would like to move your order J-2047 (lamp shades) from Wednesday to Thursday. As compensation, you will receive CHF 45 by PayPal Payout, since you have already paid. If this does not suit you, your Wednesday date stays as it is. Are you happy with this?"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 1599,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 1599,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 1358,
+   "output_tokens_details": {
+    "thinking_tokens": 980
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

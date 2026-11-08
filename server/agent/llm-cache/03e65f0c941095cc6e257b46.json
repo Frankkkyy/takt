@@ -1,0 +1,53 @@
+{
+ "key": "03e65f0c941095cc6e257b46",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:29.686Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwNh3gtUJKDxDs86FzE",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS+ggKEAgTGAI4AUIIdGhpbmtpbmcSDG779jm94A7G8Sgi6xoMzazHDdU5IGQ1cH0QIjBqVICF4MX4jwxMZ7QMRi/Y28LdFmagOhJMzFZuxsVDrQztmmzkeiXXXRHPXipZGvoqlwje2rH6nFX6538LkLdVgQw/SAedM8ZehvSgQMAQD4pC9qt1qSd7WRIlGimFdy8bRawkLCsavrWAvrEoT+vL1q5Rr4wc9iRm06fnZI/PHbT0J0m62IPGtCPufGBvkObw3bLe/kLoah4zWlzE/uWlqDbTWuDBUl2Dg87j/heXVii939ajsgUHT3e7d2vthmhJy+xLbbLz4VmmhKDVcR6okzrtnaykDY0jChWcPgaGW0+HFuUTtz7Lk2JPI1JvpjhS/2edvQljycAce62Edz5vXoRDJBu3SvJMh6qWRZNQRWjuBVpHf2V7t2oDKarcythf8YcHICz0S7XG4xZNWAQjw2N3o2VaB3WwBailVljC6THwiLHx6M/VHbIhWcZEji37QtlXcsOh5bsV/aqo6+vKpkQYsNaskEM6iAuElk9KYIMNu47IvnhINRb9rk7ksldI5PnM9K9yrBqPiMmIDeiSzxIpocw4hKuzV75jo277OZ7jkIggo+ouImdl0uKB2Rq8C8HfNlebVtRVQgfdIVBIrG/1cd6UUTMFTBiDCzLyaH541MuLAGJ1+QmrGXs3cYzpfrwKYxI0Xto2s1zfk/u623DYrU7Aboj6DrSBuskOB9NDY3CCc6EzOckDSwgTQhOYMiZ/Ie+a+/OP1xeFdg3MpqIJLxY6GhQ5pF7cJWmMISY8RaJuHjsOLF2fwrH8Y9VkH0QyNkAJUW8LlW6ll+ugxJDN6ITlwybkMyfNjt4Giln6VY3JsUlKgUiS2tEiKgjqCe+MsE6Omw0Ro3QeswbvJuMq95VqVgvA1T72IHr7poe3L23GIkXvFBvovB4RGEmY3Yenz9v92tyYdr+tfW/6TOSVRNPtEhMIXIl4hVnTOMd2d+gR7e1BDy+1smUYlDiT2ijda498Hr8l626i85DYoFxMuRHF8haxpCYZ65H0YW8hKNPO8PbYtD2jOKlGFc1hDQxkCeflfkLMzEF9wkuGPcw6ToFgvfoxNnXeV45ZqJXV4w8uHyRje2oFWMyNatnGm0/5e4wINjnH02PgXzqwhrLlszSs4x9NEp4dUcMA+rQWl8D0j7hsrMuS2KcaSb1d0uTo+018sKnuvl4/G0YflFoi8Cfy7BrqxbaWEgfWqkb0jFCxr7TGgBzPGaaaFAJp+NFTixcw5FakszhOHSq8EEdvbaJARJZ9rP9VuKwjLEAAxYqwjfIw7SelmsXKdjsS3Bsk5JttAflwD3a3tH9cJo625or3hI8s+fmb8UHlP2NN3G1dG3uhPfL+7uqJYsSUe04JV94NIB5w5kb8sYYWUgGBQRPGoEUqchCWyDg6UUEzjT8d0x9tZJ+Mwt71fqQ8LeGjPS2zXCJfPbAMEv/rTIQ32ZnHbpreTMJy3H6eoNC2zViYDF+1z4sYAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01CHfCY6SFs6SrhKqmWw9HQR",
+    "name": "reply_to_customer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "proposed_compensation_chf": 80,
+     "message": "Monsieur Rochat, nous ne pouvons malheureusement pas accepter CHF 900. Nous pouvons en revanche vous proposer CHF 80 au lieu de CHF 50, avec livraison de vos cadres de table mercredi. Pour vous, cela signifie que vous réglez CHF 80 de moins lors de l'expédition, via votre autorisation PayPal existante. Êtes-vous d'accord ?",
+     "message_en": "Mr Rochat, unfortunately we cannot accept CHF 900. We can, however, offer CHF 80 instead of CHF 50, with delivery of your table frames on Wednesday. For you, this means you pay CHF 80 less when the order ships, through your existing PayPal authorization. Do you agree?"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2731,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2731,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 602,
+   "output_tokens_details": {
+    "thinking_tokens": 220
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

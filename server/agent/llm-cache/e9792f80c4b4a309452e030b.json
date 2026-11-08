@@ -1,0 +1,53 @@
+{
+ "key": "e9792f80c4b4a309452e030b",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:42.794Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwPefbScWmNN4hBQmdV",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSwgoKEAgTGAI4AUIIdGhpbmtpbmcSDMQ3jdg6yPYFA6SopRoM5fesXKGOtC4p+lIWIjBYw6veA2r8pHPyIDT0or/tqGg+la8JOMTXvyE9qcnb6P9IhHNzLf2EK/0GjdrkENMq3wkzH+MMJfs+D+HFkrtdnQHJTgaG/XDNi1fi6fl2r3MO2Kb8sOr68ZgvbO7gcI+81cNrjjo5tR7VG4g936o5y0/TFVpD+6Lcnqo65w0F6q5FY29enq+oV7FwIe1uamqirh4kuhvRsQurx20brQn8p3ZGiZvsO2LyA90lJC5iIE/VNW7J1HmUFnAiFuKabNlH749iarxxrCzPt27DHgBncZu3vfxXudvNzVjXno27IMATEynLRkiQa2TGG4mq1x4ocT9Pf/yAPfrvY4hDBke811WDPwOypQCqWA6M8O+kPeNRGA+UQstTgvTknqV+IP755TN0lar2PGheSLH3+i+XR2LSh5K4WSUuOY/V6F7bdJq5VDlTIczqG9U6e2fUSYTrO48ZY18eDlPOXtNfJktexXJr8kJtdRszFPmnnt6xA6iRLPLlG+T5woJaMKhgacLH18jONnt6vzKnmtslZhgy/eKFrW6YxO52Fftmht22Wez4+KDhewFlC3uKyFEqc2h2y2yhGt8Bq9Xsi0TK4gR+GgHE1Yi7xL2mkH1nvCTwW3Gl4qYDlunPyxuKCFmVE2l/iAN+o7bH0g7tLMVpb/Up+0J9v3stA/8HVhq9sVIbywDGdLVLGPrrT5eZEGzbkDDeM4P7QUtAjL53KXjDu4Pg/O1J9ShEed2EqNnnqOclcjqe/xeJJmI3DqtotVv2WWGLKt9mhwwHzuyEBRNThk+ri883sepG6XJRouHzX4ybfR/Ao2JKBu3Rw9M7na4UCZPUDxi+d9ZHoM9Kr2etFCwsyIbXpDAum4dVMdRkDZXIMcD1VcNJIDVWO0ym76HVnf23G7e4+ebSbn7wset5adg0hIvDI9LY6+TlhPk2GBK8SuRh719hZ9rZiuDcFDApNm/zDxzMzRzXzilMXUeai5ByzU8jtQswZn7MTIjGFJJGXOTJF7z2DikL5l1CetcZA6O1mbr45+GX7imOPUJrl0NJtI+5mrhpKNPx3QJ1rkWLVBdvAksSFBnWoarcUEA7GM/IBNp5i4ODSqQ+Eplg8CFrzzP/iOxLbZFwUpapHwCliqzABAiwczVHMMG24e3mvO63n4PorbNy9gc5+em5kNDWPneYCBVzB+YdE/r+zditcqyD50Sr+eQhzGHKkgfkvcFq5qbsBxgJPRz/t19Qn5yg6Rktr9KNxsPfrkXTAnHJvqTvAfGDUJO9zZ/lY2L/fDNqatb07thnq1iw/vWfTz9zW7FB1zQsy36upKksdMMsjO4pYfKSCedJ0ITggST2BrPmd/NQyXu+HX164ZhWf9PjAv+toiSumZJYoFWjq6/URQjnOOcLLW2svr5bTk+NM7gAg3a+cx5lDfZGGS5XYQO6diXkYnUDR+g6maDMyy6S0q8a16ePySAI7RqhSM4Xk/rZppvJedysIHb9y30HTgypAjmWK32F7xm4xSF8a4VHJUS/QpZaKEXnf1l4BmT0/XhBt1nA9VuENxVzKoCN3V/9ygxavYZ6A6yeqw/cxaVGSklQRg+a5+X74fxDbEjkQYLc4YGXGY72bN6RqfwyBO3kBFX9+KyipyW7FXxxGi+0rV9GuAIcaTBTdC32TEF3jYKH0/YS7x/3Jh+JYjgcAgYE5rWEYPMEncUmELXUkamAnBovAPL2WYJAV6iPYDWN9xhR8xgB"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_011moSXRLdyLyDz6sVr7a5RL",
+    "name": "reply_to_customer",
+    "input": {
+     "offer_id": "OF-J-2047",
+     "proposed_compensation_chf": 45,
+     "message": "Sehr geehrte Frau Meier, da Sie den Auftrag bereits vollständig bezahlt haben, erhalten Sie die Entschädigung von CHF 45 per PayPal Payout auf Ihr PayPal-Konto. Der Betrag bleibt unverändert. Bei weiteren Fragen stehen wir Ihnen gerne zur Verfügung. Werkstatt Reuss",
+     "message_en": "Dear Ms Meier, since you have already paid in full, you will receive the compensation of CHF 45 by PayPal Payout to your PayPal account. The amount stays unchanged. We are happy to answer any further questions. Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2709,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2709,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 702,
+   "output_tokens_details": {
+    "thinking_tokens": 346
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

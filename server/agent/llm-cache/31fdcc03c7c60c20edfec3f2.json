@@ -1,0 +1,77 @@
+{
+ "key": "31fdcc03c7c60c20edfec3f2",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:32:07.228Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwRMjfhPRohP8CsdoGW",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSigcKEAgTGAI4AUIIdGhpbmtpbmcSDD3IUZuGIpI2922VwxoMsvxIV6T8y3mFUyV8IjD1ZJsEoV3IlpI6EZhpGpQAq9oMadNQdF50d+6jdom5fbUN+gdu1WPyXhp8MU193eQqpwZ+6Yg4dyz9jM9MHIG3ITI2lolBa4hO2gtg5ByBjRKURjuezyyw9q/qdQ+gDVe6xCbQefq/2EIIKsjJmZGMZ58RFmjIHT9Pilbj1N3Z4r8O56YI+K3RMbTm/QFUFpyd0F3FpB16HUo773S2xWDmRO71LDfqVjPo4s0GAOdNG2VYzLcztvcC8R9c5RR+cly6xKzp1MgtIEXRDWH0W6AOAnuxrarXZzXRIR8WvHZCpFHHyhMaYYU93xWGFuTq1qFRrc2a9kQBDzj71MJKN+pexBDRn5JXJV7il1DufZyttEeFI4+HIXZbJWBICy69Ldytp/J9X/BXR8TPogufAJCk7J9FzULQptdq+aWgpv7W17nsjeZG3fyjGFKgjZ+unXczCg2TDzSVznLUT40sHhiv3KXzdKUrNGrb7jfF+vfzgqxGK9J4X8Zl41cUh0uFuOBdIymWgHVtfFA6lPRoEmy0v8i5fatpPZJTOcZGFB7dSHmQfksBnvrf5dSfQ5b/9rukUjH3xY3HHzOvuwa3ee3+O2t4QkvyJmlHtX89pzYYg51f7vlMVXhlh5MFnO2HSxose6UuDY4STtHq5F5IMPNIUI1PyB1nuo2FEgd08GOaA4XFlrZsBzowL6/gVzlpSFgcG/eBcg2l8sQqA5WIYPbpbdzPhZUavvC5Tkz1lD1lhyoKdEUfRXCHIJxQD82rCaXevKRvdiGMz67WGm5KKesRjV35BS0y9TNyQT6AhsdayOFC3KXumhRlw8cXPTylChkfGoEPufVmsWeAAnyoijBKYnDwffK5O8KOS4/9gQ/TQSVx7P+0evHBHbRXsa08Qr9FWIf8pnMW27WlbXFss7BK3x1MkWAn+3SoGzdzXZBV7e8ayoFbuPSoFAat4yZkWvlO9T8pReij1C5TfV0UjDtq1fmGFYO2NkmYxSsSioHflfpULTmW2kFoG2nGT9EnhmPmmRLS3pA4yAcxICMtJJF9Y0TMQWL81I1/4IH9DVXjT3NG87HvOru5/mHKjJ7QKpOw81NvKT8Ws9306GiMl4Uvb6HpbWFsXwJ4KUTdkDIUR3/w4CoOiFHHX7EYAQ=="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01AaCeZT4E6dHJEcw9uRmBzb",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Option 1A has the highest net uplift (CHF 590) for CHF 95 total compensation, well within the CHF 411 cap. Atelier Rochat (one day, exhibition is three weeks away) and Studio Meier Licht (one day, prepaid, flexible up to five days) both have room to move. Keller Antriebe AG and Alpine Drone Works stay untouched."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01W5wN3LK2fuBNEDEdMfinEU",
+    "name": "draft_offer",
+    "input": {
+     "job_id": "J-2044",
+     "message": "Bonjour Monsieur Rochat,\n\nNous vous demandons si vous pouvez accepter une livraison des cadres de table le mercredi au lieu du mardi. Nous aidons ainsi un autre client confronté à une urgence. En compensation, vous paierez CHF 50 de moins lors de l'expédition de la commande.\n\nMerci de votre compréhension.\nWerkstatt Reuss",
+     "message_en": "Dear Mr Rochat,\n\nWould you accept delivery of the table frames on Wednesday instead of Tuesday? We are helping another customer with an emergency. In return, you will pay CHF 50 less when the order ships.\n\nThank you for your understanding.\nWerkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01S5BNY4g2BKWep44BaUMFUV",
+    "name": "draft_offer",
+    "input": {
+     "job_id": "J-2047",
+     "message": "Grüezi Frau Meier\n\nDürfen wir Sie bitten, die Lampenschirme statt am Mittwoch erst am Donnerstag zu erhalten? Wir helfen damit einem anderen Kunden in einer Notsituation. Als Dank erhalten Sie CHF 45 per PayPal-Auszahlung.\n\nVielen Dank für Ihr Verständnis.\nWerkstatt Reuss",
+     "message_en": "Hello Ms Meier,\n\nMay we ask you to receive the lamp shades on Thursday instead of Wednesday? We are helping another customer in an emergency. As thanks, you will receive CHF 45 by PayPal Payout.\n\nThank you for your understanding.\nWerkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 3373,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 984,
+   "output_tokens_details": {
+    "thinking_tokens": 120
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "key": "c25c3dea4c6cab343a10e986",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:39.619Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwPM7uG3dLq9uBm7VMh",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "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"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01NerbRF6LeD3sLDXQCX2idB",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-J-2047",
+     "compensation_chf": 45,
+     "delivery_day": 4,
+     "message": "Sehr geehrte Frau Meier, vielen Dank für Ihre Rückmeldung. Gerne liefern wir Ihre Lampenschirme am Freitag, also zwei Tage später als ursprünglich geplant. Die Entschädigung von CHF 45 erhalten Sie per PayPal Payout, da Sie bereits vollständig bezahlt haben. Mit freundlichen Grüssen, Werkstatt Reuss",
+     "message_en": "Dear Ms Meier, thank you for your reply. We are happy to deliver your lamp shades on Friday, two days later than originally planned. The compensation of CHF 45 will be paid to you by PayPal Payout, as you have already paid in full. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2718,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2718,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 927,
+   "output_tokens_details": {
+    "thinking_tokens": 525
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

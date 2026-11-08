@@ -1,0 +1,53 @@
+{
+ "key": "14569f731ff9791fdc7faa4f",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:33.577Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwP3ZxKLSW6Hp1vLEh9",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSmgYKEAgTGAI4AUIIdGhpbmtpbmcSDAQ+hDWxVdTMGU4yTxoM+OoIKV8GPMW66/qYIjDdr9aAHdUaC6LiB2CrJuy/hkmvgWvad23NcZetEhs+4b018Lt/EAE2+3asijAsDdIqtwWVVo97cw7Btk6JosBfBQ3rsv9q57uIXpgCCD3Y2PH5FPSjgjIi3SQp7bbmJF/Y4mUuIEa673GCLoufkZcdyL+yBJsiCBLGNLbFr3Fzjc7Sa/cScG1hD/fyXjVS5tUCgz5E10GQrHdBkwHyI5QzOym5BdJGVsOLcarKggI7zqAVIT/lSyOWgiDn659soxr82OOBypXqDYu38K6CS3ZZCb6bRzaSeZdU4HcI6PzszdfTjkZsH/wPtqKXn1K7KCoGZO0gHHlyA+XV6XuxbZqOoYsBWRvbMDsP80anzEy7Nu8M7ajKd8pK/Ym53ypGWT1L8lwUCzkpqP6xrGuXa84LYbsukt4IGrZNkXinfo6W/PqVVWbI2iYK118LzQW6HbspAxGDxe602VS0mqJ5E/VKCzUuhdmJ2M9+j4doQKqPq66YL++k0NjigTDAsej4hdbBzIwxMprUd2DspBtbOMcjPBKD1/W1dAzQD4llZUFb5+rdMR1BRZ/kqBPhgq9+TBH0lzi8CVZpBwUfyC1piGtqZpAeNw/+8CbBG0bWh7OPkGbwIOr0vQ4T2Bvo1c8MfMV2vvevInNpNfW53co7tmzHNtbHxuAbzS6ppz/T5uIhGzzDcaFDJLBugzy1tXzFrds1bvBf4o/K0nnbWEOmOATtocMvFNtgMb8nTuTjdOs/33fxnZNg5R43qBGmLZWXYvFKInM86Q2WPZ/IzdvMVLeQicHBIBr9s3hVXyM6X2E2iWi80T6Kpe/iMBM5zz3tgxC5Il3zADAYNbfAG3cYVwCVv6GWASpV9qe3q2Thf4sbSvLKkYTOqhT7Iu//i9T0uaMrUajwPOpp+tZp04vnBm0bxT3shcL4rqXHMPjg+YlPjzLRhN0oOgXUk0fsH1q8KZJNvo4bmO+BuNDPW97rXQN0R71Kbo+gOjeFIhgB"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_017gmAU3vB9TFRaTH5Q6NMcL",
+    "name": "reply_to_customer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "proposed_compensation_chf": 75,
+     "message": "Monsieur Rochat, le montant demandé dépasse malheureusement ce que nous pouvons offrir. Nous pouvons en revanche vous proposer CHF 75 au lieu de CHF 50, avec livraison de vos cadres de table mercredi. Vous réglez alors CHF 75 de moins lors de l'expédition, via votre autorisation PayPal existante. Êtes-vous d'accord ?",
+     "message_en": "Mr Rochat, the amount you requested is unfortunately beyond what we can offer. We can, however, offer CHF 75 instead of CHF 50, with delivery of your table frames on Wednesday. You would then pay CHF 75 less when the order ships, through your existing PayPal authorization. Do you agree?"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 412,
+   "cache_read_input_tokens": 3390,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 412,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 408,
+   "output_tokens_details": {
+    "thinking_tokens": 30
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

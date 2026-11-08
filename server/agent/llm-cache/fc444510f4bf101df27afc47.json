@@ -1,0 +1,51 @@
+{
+ "key": "fc444510f4bf101df27afc47",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:21.193Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwNCCMD4Y321HHqC8rx",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS7QUKEAgTGAI4AUIIdGhpbmtpbmcSDLh7d53oze77UljD5hoMaXh3+Z0tzBYzcl9GIjCj7pzEiuo7sNymD68Xm6vtoF9X5lBiDnRhD+udZbgui3mS8Cf3dv5AKP4miNHyClAqigXuCNm0ZGnCmnwHMEGTNXido/Wyl42JK58/J4vZjdfhKcuc8mVfLIpNlkP0ugK4XCV+WaC2EIdzXVreKJs8fbe7r5QAZ1veuUFHha4rKom1pp9fqtLn+fIvmzN8PVtCSzJzdmIjUohdQTXq1/EmkPVLEZN6OXdbl77QBZmMIhs8+clbnzoeYFmIq7AhrirVTd3/EHsTtRiOpnHuoQaVFD5+H6C4BhVRvqhIMociRPWiJoCK8QGQJK1unVt2qDebKtG7SZEI54rh+zfHpcNqVFCC9csrGdIJcYMunLdKCralEurSs0AeKNdqeB+UA8uukSokEVgHBOzqf1bOn7Saz4i4TDxxwymW0utikxTFjR44JkTpr/tc8OQkqPc2ImTrSbECnqliwNweyXltlCFwEfQFsZA0JJ+n6xyv5mvvOFJ+vClerBRpTei+l1pyAQ5pueRDhxnaoTirf5tfu1eyoVR+k8dqNc4nR0XLBiE1md+d/mF8v1KgnY/hc//VBgRln8hL7VxJddqlf4PlX4I2LWXCfz3J8oij50gf3RFTMR2vIPNpDkQpNKn2wHY0KCRLv4q0oUSGaDOgQwIPHiwMXkvxFwygaOwgMfyCr+DeOPoaDZUknytLLyged4LmBLAE9Gk6d/AgiAjdDaGtFTisa7PA2/g7hUKxG1xQD/3VHaL4ps4l23bX3Yy2MfiZpgX58fuPuLQfJoy6jc9FtvvYYpzUQiUp+DLSihH3I3+2oJ9PCGLGVgRJVc7dypWwFTRBS/CU1vzk/wC4eQB2mYXfPL9QU2dU6KFoUlZHj9BJMIQz8v0nYn+NdKA9PYx7DaqBjdkFNxwd1LjjkMTa4cuCSzN7WytUK0eXqlE+YBgB"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01BFSzy66iZLbzTe2xZ9AjHS",
+    "name": "decline_offer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "reason": "Customer declined the one-day delay of job J-2044 because their own customer is waiting for the table frames."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2739,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2739,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 155,
+   "output_tokens_details": {
+    "thinking_tokens": 42
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}
