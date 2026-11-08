@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { DemoState, Job } from '../../../shared/types';
-import { chf, dayLong, dayShort, post } from '../api';
+import { chf, dayLong, MACHINE_SHORT, plural, post } from '../api';
 import { OfferCard } from './Offer';
 import { RUSH_SAMPLES } from '../samples';
 import { PayPalTrail, RushCheckout } from './PayPal';
@@ -225,8 +225,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
               <div className="kv"><span>Extracted by</span><AgentTag by={rush.extractedBy} state={state} /></div>
               <div className="kv"><span>Customer</span><b>{rush.customer.name}, {rush.customer.city}</b></div>
               <div className="kv"><span>Part</span><b>{rush.qty}× {rush.title} · {rush.material}</b></div>
-              <div className="kv"><span>Routing</span><b>{rush.ops.map((o) => `${o.label} ${o.hours} h (${o.machineId})`).join(' → ')}</b></div>
-              <div className="kv"><span>Needed by</span><b>{dayShort(state.boardStartIso, rush.dueDay)} evening</b></div>
+              <div className="kv"><span>Routing</span><b>{rush.ops.map((o) => `${o.label} ${o.hours} h (${MACHINE_SHORT[o.machineId] ?? o.machineId})`).join(' → ')}</b></div>
+              <div className="kv"><span>Needed by</span><b>{dayLong(state.boardStartIso, rush.dueDay)} evening</b></div>
               <div className="kv"><span>Base price</span><b>{chf(rush.basePriceChf)}</b> <small className="muted">rate card, not AI</small></div>
               {rush.firstFitDay !== undefined && rush.firstFitDay > rush.dueDay ? (
                 <p className="callout warn">If nobody moves, this job ships <b>{dayLong(state.boardStartIso, rush.firstFitDay)}</b>: too late for {dayLong(state.boardStartIso, rush.dueDay)}. Takt can ask customers who said they are flexible to wait, for money.</p>
@@ -344,7 +344,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
           )}
           {stage === 'committed' && (
             <>
-              <p className="callout good">Confirmed by PayPal. Nobody let down: {plan.offers.length} customer(s) agreed and are compensated.</p>
+              <p className="callout good">Confirmed by PayPal. Nobody let down: {plural(plan.offers.length, 'customer')} agreed and {plan.offers.length === 1 ? 'is' : 'are'} compensated.</p>
               <h3>Settle</h3>
               <p className="muted small">Each job shows every PayPal object it touched. "Check in PayPal" reads the current status straight from the API.</p>
               <div className="settle">

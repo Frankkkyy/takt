@@ -33,4 +33,4 @@ export function dayLong(boardStartIso: string, day: number): string {
   const d = dayDate(boardStartIso, day);
   return `${WD[day % 5]} ${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`;
 }
-export const chf = (v: number) => `CHF ${v.toLocaleString('de-CH')}`;
+export { chf, plural, MACHINE_SHORT } from '../../shared/format';

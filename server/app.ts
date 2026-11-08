@@ -8,6 +8,7 @@ import { planRush, rushToJob, type PlanCandidate, type PlanResult } from './doma
 import { compensation, compensationBudget, perJobCap, POLICY } from './domain/pricing.js';
 import type { AgentResult, AgentStep, BumpDetail, OptionDetail, PlannerView, RushAgent } from './agent/agent.js';
 import { dayLabel, emptyStatus, NeedsClarification, relDay } from './agent/agent.js';
+import { chf as fmtChf, plural } from '../shared/format.js';
 import { templateMoveOffer, templateOffer } from './agent/deterministic.js';
 import { approvalChecks, BOARD_LAST_DAY, checkAmount, checkCounter, checkDeliveryDay, checkMessage, offerCeiling } from './agent/guardrails.js';
 import type { PayPalGateway } from './paypal/gateway.js';
@@ -257,24 +258,26 @@ export class TaktApp {
     };
     if (days <= 0) return done({ ...base, verdict: 'refused', reason: `Takt only moves work later: pulling ${jobId} forward would need its material and a free machine earlier.` });
     if (!c.flexible && wanted > job.dueDay) return done({ ...base, verdict: 'refused', reason: `${c.name} is a firm promise (${c.note.replace(/\.$/, '')}). Moving ${jobId} to ${day(wanted)} would break their date, so Takt won't ask.` });
-    if (wanted - job.dueDay > c.maxDelayDays) return done({ ...base, verdict: 'refused', reason: `${c.name} said they can wait at most ${c.maxDelayDays} working day(s); ${day(wanted)} is ${wanted - job.dueDay} day(s) late.` });
+    if (wanted - job.dueDay > c.maxDelayDays) return done({ ...base, verdict: 'refused', reason: `${c.name} said they can wait at most ${plural(c.maxDelayDays, 'working day')}; ${day(wanted)} is ${plural(wanted - job.dueDay, 'day')} late.` });
     const slot = this.moveSlot(jobId, wanted);
     if (!slot) return done({ ...base, verdict: 'refused', reason: `No later slot for ${jobId} up to ${day(wanted)} keeps every other promise on these machines.` });
     const toDay = slot.day;
     const frees = this.freedBy(job, slot.sim);
+    // `frees` goes to the agent prompt as is (recorded replays are keyed by it); the owner sees proper plurals.
+    const freesUi = frees.replace(/(\d+) job\(s\) finish/, (_, n: string) => (n === '1' ? '1 job finishes' : `${n} jobs finish`));
     const near = toDay < wanted ? ` The nearest slot that keeps every other promise ends ${day(toDay)}.` : '';
     const proposal = (review: MoveReview, offer?: BumpOffer, draftedBy?: MoveProposal['draftedBy']): MoveProposal => ({
       id: `MOVE-${jobId}-${Date.now().toString(36)}`, jobId, review, offer, draftedBy, stage: 'drafted', proposed: slot.sim,
     });
     this.pendingMove = slot.order;
     if (toDay <= job.dueDay) {
-      const review: MoveReview = { ...base, toDay, verdict: 'fits', frees, reason: `${c.name} still gets ${jobId} by ${day(job.dueDay)} as promised (new delivery ${day(toDay)}). No offer and no money needed: the move ${frees}.${near}` };
+      const review: MoveReview = { ...base, toDay, verdict: 'fits', frees: freesUi, reason: `${c.name} still gets ${jobId} by ${day(job.dueDay)} as promised (new delivery ${day(toDay)}). No offer and no money needed: the move ${freesUi}.${near}` };
       this.state.move = proposal(review);
       return done(review);
     }
     const late = toDay - job.dueDay;
     const cap = this.capLeft(job);
-    if (cap <= 0) return done({ ...base, toDay, verdict: 'refused', reason: `${jobId} already got compensation up to its cap (CHF ${perJobCap(job)}); Takt won't ask ${c.name} again.` });
+    if (cap <= 0) return done({ ...base, toDay, verdict: 'refused', reason: `${jobId} already got compensation up to its cap (${fmtChf(perJobCap(job))}); Takt won't ask ${c.name} again.` });
     const chf = Math.min(compensation(job, c, late), cap);
     const mechanism: BumpOffer['mechanism'] = job.payment.kind === 'authorization' ? 'reduced-capture' : 'payout';
     const bump: BumpDetail = { jobId, jobTitle: job.title, customerId: c.id, customerName: c.name, contact: c.contact, lang: c.lang, fromDay: job.dueDay, toDay, delayDays: late, compensationChf: chf, mechanism, capChf: cap };
@@ -290,8 +293,8 @@ export class TaktApp {
     const how = mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout (prepaid)';
     const by = ok && (res.source === 'live' || res.source === 'replay') ? 'llm' : 'deterministic';
     const review: MoveReview = {
-      ...base, toDay, verdict: 'offer', frees,
-      reason: `Moving ${jobId} to ${day(toDay)} breaks ${c.name}'s date (${day(job.dueDay)}) by ${late} day(s). It ${frees}. Offer CHF ${chf} via ${how}; cap CHF ${cap}.${near}`,
+      ...base, toDay, verdict: 'offer', frees: freesUi,
+      reason: `Moving ${jobId} to ${day(toDay)} breaks ${c.name}'s date (${day(job.dueDay)}) by ${plural(late, 'day')}. It ${freesUi}. Offer ${fmtChf(chf)} via ${how}; cap ${fmtChf(cap)}.${near}`,
       offer: { compensationChf: chf, capChf: cap, mechanism, lang: c.lang, message: draft.message, messageEn: draft.messageEn },
     };
     const now = new Date().toISOString();
@@ -318,7 +321,7 @@ export class TaktApp {
     if (!m.offer) return this.approveMove();
     m.offer.status = 'sent';
     m.stage = 'offer-sent';
-    this.log('owner', 'Board move: offer sent', `${this.cust(m.offer.customerId)!.name} (${m.offer.lang.toUpperCase()}): +${m.offer.delayDays} d for CHF ${m.offer.compensationChf}`);
+    this.log('owner', 'Board move: offer sent', `${this.cust(m.offer.customerId)!.name} (${m.offer.lang.toUpperCase()}): +${m.offer.delayDays} d for ${fmtChf(m.offer.compensationChf)}`);
     return m;
   }
 
@@ -341,8 +344,8 @@ export class TaktApp {
     const others = !!sim && Object.values(sim.timing).every((t) => t.jobId === job.id || !t.late);
     return [
       { label: `${c.name} accepted the move (${o.status === 'accepted' ? 1 : 0}/1)`, ok: o.status === 'accepted' },
-      { label: `Compensation CHF ${o.compensationChf} within the job cap CHF ${cap} (${Math.round(POLICY.compCapShare * 100)} % of job price, minus earlier compensation)`, ok: o.compensationChf <= cap },
-      { label: `New date within what ${c.name} said they can wait (${o.toDay - job.dueDay} of ${c.maxDelayDays} day(s))`, ok: c.flexible && o.toDay - job.dueDay <= c.maxDelayDays && o.toDay >= (sim?.timing[job.id]?.deliveryDay ?? 99) },
+      { label: `Compensation ${fmtChf(o.compensationChf)} within the job cap ${fmtChf(cap)} (${Math.round(POLICY.compCapShare * 100)} % of job price, minus earlier compensation)`, ok: o.compensationChf <= cap },
+      { label: `New date within what ${c.name} said they can wait (${o.toDay - job.dueDay} of ${plural(c.maxDelayDays, 'day')})`, ok: c.flexible && o.toDay - job.dueDay <= c.maxDelayDays && o.toDay >= (sim?.timing[job.id]?.deliveryDay ?? 99) },
       { label: 'Every other promise still holds (planner re-check)', ok: others },
       { label: 'Payee comes from the booking record, never from message text', ok: true },
     ];
@@ -355,7 +358,7 @@ export class TaktApp {
     const auth = job.payment.kind === 'authorization' ? job.payment.authorizedChf : 0;
     const move: MoneyMove = o.mechanism === 'payout'
       ? { id: `MV-${o.id}`, kind: 'payout', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v1/payments/payouts', detail: `Now, to the PayPal account on file for ${c.name} (prepaid ${job.id})` }
-      : { id: `MV-${o.id}`, kind: 'capture-less', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v2/payments/authorizations/{id}/capture', detail: `At shipment of ${job.id}: capture CHF ${auth - (job.compensationChf ?? 0) - o.compensationChf} of CHF ${auth}, final_capture=true` };
+      : { id: `MV-${o.id}`, kind: 'capture-less', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v2/payments/authorizations/{id}/capture', detail: `At shipment of ${job.id}: capture ${fmtChf(auth - (job.compensationChf ?? 0) - o.compensationChf)} of ${fmtChf(auth)}, final_capture=true` };
     m.stage = 'awaiting-approval';
     m.approval = { moves: [move], checks: this.moveChecks(m), status: 'pending' };
     this.log('guardrail', 'Board move waiting for owner approval', `1 money move; ${m.approval.checks.filter((x) => x.ok).length}/${m.approval.checks.length} checks pass. Nothing reaches PayPal before the owner approves.`);
@@ -387,7 +390,7 @@ export class TaktApp {
     const o = m.offer;
     const c = this.cust(o.customerId)!;
     const job = this.state.jobs.find((j) => j.id === o.jobId)!;
-    this.log('owner', 'Owner approved the board move', `${job.id} → ${relDay(o.toDay, 'en')}, compensation CHF ${o.compensationChf}`);
+    this.log('owner', 'Owner approved the board move', `${job.id} → ${relDay(o.toDay, 'en')}, compensation ${fmtChf(o.compensationChf)}`);
     try {
       if (o.mechanism === 'payout') {
         const receiverEmail = this.paypal.mode === 'sandbox' && this.opts.payoutReceiver ? this.opts.payoutReceiver : c.email;
@@ -399,8 +402,8 @@ export class TaktApp {
         this.log('api', `Payout to ${c.name}`, `Board move: POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
       } else if (job.payment.kind === 'authorization') {
         await this.ensureRealAuthorization(job);
-        this.step(job.paypal, { label: `Board move agreed: capture CHF ${o.compensationChf} less at shipment`, status: 'CREATED', id: job.payment.authorizationId, idKind: 'authorization', amountChf: o.compensationChf, source: 'call' });
-        this.log('agent', `Capture-less booked for ${c.name}`, `Board move: will capture CHF ${job.payment.authorizedChf - (job.compensationChf ?? 0) - o.compensationChf} instead of ${job.payment.authorizedChf - (job.compensationChf ?? 0)} on ${job.payment.authorizationId} at shipment`, job.payment.authorizationId, o.compensationChf);
+        this.step(job.paypal, { label: `Board move agreed: capture ${fmtChf(o.compensationChf)} less at shipment`, status: 'CREATED', id: job.payment.authorizationId, idKind: 'authorization', amountChf: o.compensationChf, source: 'call' });
+        this.log('agent', `Capture-less booked for ${c.name}`, `Board move: will capture ${fmtChf(job.payment.authorizedChf - (job.compensationChf ?? 0) - o.compensationChf)} instead of ${fmtChf(job.payment.authorizedChf - (job.compensationChf ?? 0))} on ${job.payment.authorizationId} at shipment`, job.payment.authorizationId, o.compensationChf);
       }
     } catch (e) {
       a.status = 'pending';
@@ -482,7 +485,7 @@ export class TaktApp {
     this.state.stage = 'intake';
     this.logSteps(res.steps);
     const hours = rush.ops.map((o) => `${o.machineId} ${o.hours} h`).join(' + ');
-    this.log('agent', 'Rush request understood', `Read by ${this.viaLabel(res.source)} (${rush.customer.lang.toUpperCase()}): ${rush.qty}× ${rush.title}, ${rush.material}; routing ${hours} (code); due ${dayLabel(this.boardStart, rush.dueDay, 'en')}; base CHF ${rush.basePriceChf} (rate card)`);
+    this.log('agent', 'Rush request understood', `Read by ${this.viaLabel(res.source)} (${rush.customer.lang.toUpperCase()}): ${rush.qty}× ${rush.title}, ${rush.material}; routing ${hours} (code); due ${dayLabel(this.boardStart, rush.dueDay, 'en')}; base ${fmtChf(rush.basePriceChf)} (rate card)`);
     return rush;
   }
 
@@ -564,7 +567,7 @@ export class TaktApp {
       id: `P${Date.now().toString(36)}`,
       rushId: rush.id,
       feasible,
-      reason: feasible ? (pick.bumps.length ? `Fits by ${pick.bumps.length} voluntary bump(s)` : 'Fits without bumping anyone') : base.reason,
+      reason: feasible ? (pick.bumps.length ? `Fits by ${plural(pick.bumps.length, 'voluntary bump')}` : 'Fits without bumping anyone') : base.reason,
       insertAt: pick.insertAt,
       bumpedJobIds: pick.bumps.map((b) => b.jobId),
       proposed: schedule(pick.orderedJobs),
@@ -583,10 +586,10 @@ export class TaktApp {
         base.firstFitDay > rush.dueDay
           ? `Without moving anyone, the earliest delivery would be ${dayLabel(this.boardStart, base.firstFitDay, 'en')}: too late for ${dayLabel(this.boardStart, rush.dueDay, 'en')}.`
           : `There is free capacity: it ships ${dayLabel(this.boardStart, base.firstFitDay, 'en')} without moving anyone.`,
-        `Planner simulated ${base.candidatesEvaluated} re-sequencing options on the laser and press brake; ${options.length} feasible plan(s) offered to the agent.`,
+        `Planner simulated ${base.candidatesEvaluated} re-sequencing options on the laser and press brake; ${plural(options.length, 'feasible plan')} offered to the agent.`,
         `Firm promises kept untouched: ${firm.join(', ')}.`,
-        ...offers.map((o) => `${this.cust(o.customerId)!.name}: +${o.delayDays} day(s) → CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less on their authorization' : 'PayPal Payout, already paid'})`),
-        feasible ? `Rush price CHF ${pick.rushPriceChf} = base ${rush.basePriceChf} + premium ${pick.rushPremiumChf}; compensation budget CHF ${compensationBudget(pick.rushPremiumChf)}; net uplift CHF ${pick.netUpliftChf}.` : base.reason,
+        ...offers.map((o) => `${this.cust(o.customerId)!.name}: +${plural(o.delayDays, 'day')} → ${fmtChf(o.compensationChf)} (${o.mechanism === 'reduced-capture' ? 'capture less on their authorization' : 'PayPal Payout, already paid'})`),
+        feasible ? `Rush price ${fmtChf(pick.rushPriceChf)} = base ${fmtChf(rush.basePriceChf)} + premium ${fmtChf(pick.rushPremiumChf)}; compensation budget ${fmtChf(compensationBudget(pick.rushPremiumChf))}; net uplift ${fmtChf(pick.netUpliftChf)}.` : base.reason,
       ],
     };
     this.state.plan = plan;
@@ -673,7 +676,7 @@ export class TaktApp {
           this.log('guardrail', `Counter from ${c.name} blocked`, o.escalation);
           break;
         }
-        this.log('agent', `Counter-offer agreed with ${c.name}`, `${via}: CHF ${o.compensationChf} → CHF ${d.compensationChf}, delivery ${relDay(o.toDay, 'en')} → ${relDay(d.deliveryDay!, 'en')} (cap CHF ${ceiling})`);
+        this.log('agent', `Counter-offer agreed with ${c.name}`, `${via}: ${fmtChf(o.compensationChf)} → ${fmtChf(d.compensationChf!)}, delivery ${relDay(o.toDay, 'en')} → ${relDay(d.deliveryDay!, 'en')} (cap ${fmtChf(ceiling)})`);
         o.compensationChf = d.compensationChf!;
         o.toDay = d.deliveryDay!;
         o.delayDays = o.toDay - o.fromDay;
@@ -685,7 +688,7 @@ export class TaktApp {
       case 'reply':
         if (d.compensationChf !== undefined && checkAmount(d.compensationChf, ceiling).ok) o.compensationChf = d.compensationChf;
         say();
-        this.log('agent', `Answered ${c.name}`, `${via}: ${d.reason}${d.compensationChf !== undefined ? ` (now offering CHF ${o.compensationChf}, cap CHF ${ceiling})` : ''}`);
+        this.log('agent', `Answered ${c.name}`, `${via}: ${d.reason}${d.compensationChf !== undefined ? ` (now offering ${fmtChf(o.compensationChf)}, cap ${fmtChf(ceiling)})` : ''}`);
         break;
       case 'decline':
         o.decidedBy = by;
@@ -707,12 +710,12 @@ export class TaktApp {
     o.escalation = undefined;
     const m = this.state.move;
     if (m?.offer === o) {
-      this.log('agent', `${c.name} accepted the board move`, `${via}: +${o.delayDays} day(s) for CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
+      this.log('agent', `${c.name} accepted the board move`, `${via}: +${plural(o.delayDays, 'day')} for ${fmtChf(o.compensationChf)} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
       this.moveAccepted(m);
       return;
     }
     this.recomputeTotals();
-    this.log('agent', `${c.name} accepted`, `${via}: +${o.delayDays} day(s) for CHF ${o.compensationChf} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
+    this.log('agent', `${c.name} accepted`, `${via}: +${plural(o.delayDays, 'day')} for ${fmtChf(o.compensationChf)} (${o.mechanism === 'reduced-capture' ? 'capture less at shipment' : 'PayPal Payout'}); queued for owner approval`, undefined, o.compensationChf);
     this.maybeRequestApproval();
   }
 
@@ -761,13 +764,13 @@ export class TaktApp {
       const job = this.state.jobs.find((j) => j.id === o.jobId)!;
       return o.mechanism === 'payout'
         ? { id: `MV-${o.id}`, kind: 'payout', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v1/payments/payouts', detail: `Now, to the PayPal account on file for ${c.name} (prepaid ${job.id})` }
-        : { id: `MV-${o.id}`, kind: 'capture-less', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v2/payments/authorizations/{id}/capture', detail: `At shipment of ${job.id}: capture CHF ${(job.payment as { authorizedChf: number }).authorizedChf - o.compensationChf} of CHF ${(job.payment as { authorizedChf: number }).authorizedChf}, final_capture=true` };
+        : { id: `MV-${o.id}`, kind: 'capture-less', customerName: c.name, amountChf: o.compensationChf, api: 'POST /v2/payments/authorizations/{id}/capture', detail: `At shipment of ${job.id}: capture ${fmtChf((job.payment as { authorizedChf: number }).authorizedChf - o.compensationChf)} of ${fmtChf((job.payment as { authorizedChf: number }).authorizedChf)}, final_capture=true` };
     });
     moves.push({ id: 'MV-RUSH', kind: 'rush-authorize', customerName: this.state.rush!.customer.name, amountChf: p.rushPriceChf, api: 'POST /v2/checkout/orders intent=AUTHORIZE', detail: 'Rush customer approves in PayPal; nothing is charged until the parts ship' });
     const checks = approvalChecks(p, this.caps());
     this.state.approval = { moves, checks, status: 'pending' };
     this.state.stage = 'awaiting-approval';
-    this.log('guardrail', 'Waiting for owner approval', `${moves.length} money move(s); ${checks.filter((c) => c.ok).length}/${checks.length} checks pass. Nothing reaches PayPal before the owner approves.`);
+    this.log('guardrail', 'Waiting for owner approval', `${plural(moves.length, 'money move')}; ${checks.filter((c) => c.ok).length}/${checks.length} checks pass. Nothing reaches PayPal before the owner approves.`);
   }
 
   async approve() {
@@ -788,14 +791,14 @@ export class TaktApp {
     a.status = 'approved';
     const done = new Set(a.doneMoveIds ?? []);
     const retry = done.size > 0;
-    this.log('owner', retry ? 'Owner retried the approval' : 'Owner approved the money moves', `${a.moves.length} move(s), compensation CHF ${p.compensationTotalChf}, rush CHF ${p.rushPriceChf}${retry ? `; ${done.size} already done, skipped` : ''}`);
+    this.log('owner', retry ? 'Owner retried the approval' : 'Owner approved the money moves', `${plural(a.moves.length, 'move')}, compensation ${fmtChf(p.compensationTotalChf)}, rush ${fmtChf(p.rushPriceChf)}${retry ? `; ${done.size} already done, skipped` : ''}`);
     try {
       await this.moveMoney(p, done);
     } catch (e) {
       // A PayPal call failed halfway: keep what succeeded, let the owner retry the rest (never pay twice).
       a.status = 'pending';
       a.doneMoveIds = [...done];
-      this.log('system', 'PayPal call failed during approval', `${e instanceof Error ? e.message : String(e)}. ${done.size} of ${a.moves.length} move(s) done; press Approve again to retry the rest`);
+      this.log('system', 'PayPal call failed during approval', `${e instanceof Error ? e.message : String(e)}. ${done.size} of ${plural(a.moves.length, 'move')} done; press Approve again to retry the rest`);
       throw e;
     }
     a.doneMoveIds = [...done];
@@ -819,8 +822,8 @@ export class TaktApp {
         this.log('api', `Payout to ${c.name}`, `POST /v1/payments/payouts → batch ${res.batchStatus}`, res.payoutBatchId, o.compensationChf);
       } else if (job.payment.kind === 'authorization') {
         await this.ensureRealAuthorization(job);
-        this.step(job.paypal, { label: `Agreed: capture CHF ${o.compensationChf} less at shipment`, status: 'CREATED', id: job.payment.authorizationId, idKind: 'authorization', amountChf: o.compensationChf, source: 'call' });
-        this.log('agent', `Capture-less booked for ${c.name}`, `Will capture CHF ${job.payment.authorizedChf - (job.compensationChf ?? 0) - o.compensationChf} instead of ${job.payment.authorizedChf - (job.compensationChf ?? 0)} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
+        this.step(job.paypal, { label: `Agreed: capture ${fmtChf(o.compensationChf)} less at shipment`, status: 'CREATED', id: job.payment.authorizationId, idKind: 'authorization', amountChf: o.compensationChf, source: 'call' });
+        this.log('agent', `Capture-less booked for ${c.name}`, `Will capture ${fmtChf(job.payment.authorizedChf - (job.compensationChf ?? 0) - o.compensationChf)} instead of ${fmtChf(job.payment.authorizedChf - (job.compensationChf ?? 0))} on ${job.payment.authorizationId} at shipment (final_capture=true releases the rest)`, job.payment.authorizationId, o.compensationChf);
       }
       // Added, not replaced: a job moved on the board earlier keeps that compensation too.
       job.compensationChf = (job.compensationChf ?? 0) + o.compensationChf;
@@ -856,7 +859,7 @@ export class TaktApp {
     this.state.rushOrder = { orderId: order.orderId, status: 'created', amountChf: p.rushPriceChf, approveUrl: order.approveUrl, paypal: [] };
     this.step(this.state.rushOrder.paypal, { label: 'Rush order created (hold only, nothing charged)', status: order.status, id: order.orderId, idKind: 'order', api: 'POST /v2/checkout/orders intent=AUTHORIZE', amountChf: p.rushPriceChf, source: 'call' });
     this.state.stage = 'awaiting-payment';
-    this.log('api', 'Rush order created', `POST /v2/checkout/orders intent=AUTHORIZE CHF ${p.rushPriceChf}`, order.orderId, p.rushPriceChf);
+    this.log('api', 'Rush order created', `POST /v2/checkout/orders intent=AUTHORIZE ${fmtChf(p.rushPriceChf)}`, order.orderId, p.rushPriceChf);
     return order;
   }
 
@@ -919,7 +922,7 @@ export class TaktApp {
     o.authorizationId = a.authorizationId;
     o.expiresAt = a.expirationTime;
     this.ownIds.add(a.authorizationId);
-    this.step(o.paypal, { label: `Payment authorized: CHF ${a.amount.value} held${a.expirationTime ? ` until ${a.expirationTime.slice(0, 10)}` : ''} (honor period 3 days)`, status: a.status, id: a.authorizationId, idKind: 'authorization', api: 'POST /v2/checkout/orders/{id}/authorize', amountChf: a.amount.value, source: 'call' });
+    this.step(o.paypal, { label: `Payment authorized: ${fmtChf(a.amount.value)} held${a.expirationTime ? ` until ${a.expirationTime.slice(0, 10)}` : ''} (honor period 3 days)`, status: a.status, id: a.authorizationId, idKind: 'authorization', api: 'POST /v2/checkout/orders/{id}/authorize', amountChf: a.amount.value, source: 'call' });
     this.log('api', 'Rush payment authorized', `POST /v2/checkout/orders/{id}/authorize → ${a.status}; nothing charged until shipment`, a.authorizationId, a.amount.value);
     // Commit happens on the PAYMENT.AUTHORIZATION.CREATED webhook, not here.
   }
@@ -1003,7 +1006,7 @@ export class TaktApp {
     this.state.yield.compensationsChf += p.compensationTotalChf;
     this.state.yield.netChf += p.netUpliftChf;
     this.state.yield.rushJobsWon += 1;
-    this.log('system', 'Schedule committed', `Confirmed by PayPal (webhook or reconcile poll). Net uplift CHF ${p.netUpliftChf}`, o.authorizationId, p.netUpliftChf);
+    this.log('system', 'Schedule committed', `Confirmed by PayPal (webhook or reconcile poll). Net uplift ${fmtChf(p.netUpliftChf)}`, o.authorizationId, p.netUpliftChf);
   }
 
   // ---- 5. Settle ------------------------------------------------------------------------------------
@@ -1029,8 +1032,8 @@ export class TaktApp {
       });
       this.ownIds.add(cap.captureId);
       j.captureId = cap.captureId;
-      this.step(j.paypal, { label: `Shipped: captured CHF ${amount}${comp ? ` of ${j.payment.authorizedChf}; CHF ${comp} never charged` : ''} (final_capture releases the rest)`, status: cap.status, id: cap.captureId, idKind: 'capture', api: 'POST /v2/payments/authorizations/{id}/capture', amountChf: amount, source: 'call' });
-      this.log('api', `Captured ${j.id}`, `POST /v2/payments/authorizations/{id}/capture CHF ${amount}${comp ? ` (authorized ${j.payment.authorizedChf}, −${comp} compensation)` : ''}, final_capture=true`, cap.captureId, amount);
+      this.step(j.paypal, { label: `Shipped: captured ${fmtChf(amount)}${comp ? ` of ${fmtChf(j.payment.authorizedChf)}; ${fmtChf(comp)} never charged` : ''} (final_capture releases the rest)`, status: cap.status, id: cap.captureId, idKind: 'capture', api: 'POST /v2/payments/authorizations/{id}/capture', amountChf: amount, source: 'call' });
+      this.log('api', `Captured ${j.id}`, `POST /v2/payments/authorizations/{id}/capture ${fmtChf(amount)}${comp ? ` (authorized ${fmtChf(j.payment.authorizedChf)}, −${fmtChf(comp)} compensation)` : ''}, final_capture=true`, cap.captureId, amount);
     }
     j.status = 'shipped';
     this.state.schedule = schedule(this.state.jobs);
@@ -1049,7 +1052,7 @@ export class TaktApp {
     if (j.payment.kind === 'authorization') {
       const v = await this.paypal.voidAuthorization(j.payment.authorizationId);
       this.step(j.paypal, { label: 'Cancelled before shipment: hold released, nothing charged', status: v.status, id: j.payment.authorizationId, idKind: 'authorization', api: 'POST /v2/payments/authorizations/{id}/void', amountChf: j.payment.authorizedChf, source: 'call' });
-      this.log('api', `Voided ${j.id}`, `POST /v2/payments/authorizations/{id}/void → ${v.status}: CHF ${j.payment.authorizedChf} hold released`, j.payment.authorizationId, j.payment.authorizedChf);
+      this.log('api', `Voided ${j.id}`, `POST /v2/payments/authorizations/{id}/void → ${v.status}: ${fmtChf(j.payment.authorizedChf)} hold released`, j.payment.authorizationId, j.payment.authorizedChf);
     }
     j.status = 'cancelled';
     if (j.rush) this.rushCancelled(j, 'void');
@@ -1067,7 +1070,7 @@ export class TaktApp {
     if (!j || j.status !== 'shipped' || !j.captureId) throw new Error('Nothing to refund: ship the job first');
     const r = await this.paypal.refundCapture(j.captureId, undefined, `Takt: ${j.id} cancelled, full refund.`);
     this.ownIds.add(r.refundId);
-    this.step(j.paypal, { label: `Cancelled after shipment: CHF ${r.amount.value} refunded to the buyer`, status: r.status, id: r.refundId, idKind: 'refund', api: 'POST /v2/payments/captures/{id}/refund', amountChf: r.amount.value, source: 'call' });
+    this.step(j.paypal, { label: `Cancelled after shipment: ${fmtChf(r.amount.value)} refunded to the buyer`, status: r.status, id: r.refundId, idKind: 'refund', api: 'POST /v2/payments/captures/{id}/refund', amountChf: r.amount.value, source: 'call' });
     this.log('api', `Refunded ${j.id}`, `POST /v2/payments/captures/{id}/refund → ${r.status}`, r.refundId, r.amount.value);
     j.status = 'cancelled';
     if (j.rush) this.rushCancelled(j, 'refund');
@@ -1083,7 +1086,7 @@ export class TaktApp {
     this.state.yield.premiumsChf -= p.rushPremiumChf;
     this.state.yield.netChf -= p.rushPremiumChf;
     this.state.yield.rushJobsWon -= 1;
-    this.log('system', 'Rush cancelled', `${via === 'void' ? 'Authorization voided before shipment' : 'Capture refunded'}; premium CHF ${p.rushPremiumChf} lost. Bumped customers keep their compensation (CHF ${p.compensationTotalChf}) and new dates.`, undefined, -p.compensationTotalChf);
+    this.log('system', 'Rush cancelled', `${via === 'void' ? 'Authorization voided before shipment' : 'Capture refunded'}; premium ${fmtChf(p.rushPremiumChf)} lost. Bumped customers keep their compensation (${fmtChf(p.compensationTotalChf)}) and new dates.`, undefined, -p.compensationTotalChf);
   }
 
   /** "Check in PayPal": read the job's current authorization / capture / payout straight from the API. */

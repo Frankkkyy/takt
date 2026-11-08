@@ -15,7 +15,7 @@ import '@bryntum/schedulerpro/svalbard-light.css';
 import '@bryntum/schedulerpro/fontawesome/css/fontawesome.css';
 import '@bryntum/schedulerpro/fontawesome/css/solid.css';
 import { BOARD_DAYS, HOURS_PER_DAY, type BumpOffer, type DemoState, type Job, type MoveReview, type Schedule } from '../../../shared/types';
-import { chf, dayDate, dayShort, post } from '../api';
+import { chf, dayDate, dayLong, MACHINE_SHORT, post } from '../api';
 
 const DAY_START_HOUR = 7;
 const HISTO_ROW = 30;
@@ -124,7 +124,7 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
       short: shortName(j.customerId, custName(j.customerId)),
       title: j.title,
       op: o.label,
-      due: dayShort(iso, j.dueDay),
+      due: dayLong(iso, j.dueDay),
       late: !!timing?.late,
       payState: payStateOf(j, false),
       payLine: pay.line,
@@ -157,7 +157,7 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
             short: state.rush?.customer.name ?? 'Rush',
             title: state.rush?.title ?? 'Rush job',
             op: g.label,
-            due: dayShort(iso, state.rush?.dueDay ?? 0),
+            due: dayLong(iso, state.rush?.dueDay ?? 0),
             late: false,
             payState: 'rush',
             payLine: `Rush premium ${chf(plan!.rushPremiumChf)} · PayPal hold ${chf(plan!.rushPriceChf)} on approval`,
@@ -171,7 +171,7 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
             short: shortName(j?.customerId ?? '', custName(j?.customerId ?? '')),
             title: j?.title ?? '',
             op: g.label,
-            due: offer ? dayShort(iso, offer.toDay) : '',
+            due: offer ? dayLong(iso, offer.toDay) : '',
             late: false,
             payState: payStateOf(j, false),
             payLine: offer ? `${prop.kind === 'move' ? 'Board move · ' : ''}Offer: ${chf(offer.compensationChf)} via ${mech} · ${offer.status}` : prop.kind === 'move' ? 'Board move: within the promised date' : 'Proposed slot',
@@ -522,7 +522,7 @@ export function Board({ state, showProposal, onState }: Props) {
                 htmlEncode: false,
                 renderer: ({ record }: { record: { get: (f: string) => unknown; id: unknown } }) => {
                   const p = pctRef.current[String(record.id)] ?? 0;
-                  return `<span class="histo-res ${p >= 95 ? 'full' : ''}"><b>${p} %</b> booked · ${enc(String(record.id))}</span>`;
+                  return `<span class="histo-res ${p >= 95 ? 'full' : ''}"><b>${p} %</b> booked · ${enc(MACHINE_SHORT[String(record.id)] ?? String(record.id))}</span>`;
                 },
               },
             ]}

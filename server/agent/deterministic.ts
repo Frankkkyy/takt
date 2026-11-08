@@ -5,6 +5,7 @@ import { basePrice } from '../domain/pricing.js';
 import { materialChf, routeFor } from '../domain/routing.js';
 import type { AgentResult, BumpDetail, IntakeResult, MoveDraftInput, OfferDraft, PlanDecision, PlanInput, ReplyDecision, ReplyInput, RushAgent } from './agent.js';
 import { dayLabel, emptyStatus, NeedsClarification, WEEKDAYS } from './agent.js';
+import { plural } from '../../shared/format.js';
 import { checkCounter, checkDeliveryDay, chfAmounts, concessionStep, counterLimit } from './guardrails.js';
 
 const NUM_WORDS: Record<string, number> = {
@@ -66,7 +67,7 @@ export class DeterministicAgent implements RushAgent {
     for (const b of opt.bumps) drafts[b.jobId] = templateOffer(b, input.boardStart);
     const who = opt.bumps.map((b) => `${b.customerName} (+${b.delayDays} d, CHF ${b.compensationChf})`).join(' and ');
     const justification = opt.bumps.length
-      ? `Cheapest of ${view.options.length} feasible option(s): ask ${who}. Total CHF ${opt.compensationTotalChf} of a CHF ${opt.budgetCapChf} budget; net uplift CHF ${opt.netUpliftChf}.`
+      ? `Cheapest of ${plural(view.options.length, 'feasible option')}: ask ${who}. Total CHF ${opt.compensationTotalChf} of a CHF ${opt.budgetCapChf} budget; net uplift CHF ${opt.netUpliftChf}.`
       : 'The rush job fits without moving anyone.';
     return this.done({ optionId: opt.optionId, justification, drafts }, `Chose option ${opt.optionId}`, justification);
   }
