@@ -445,6 +445,29 @@ h2[tabindex='-1']:focus { outline: none; box-shadow: none; }
 .ledger .tool-steps { list-style: none; margin: 6px 0 0; padding: 0 0 0 10px; border-left: 2px solid var(--ai-line); display: flex; flex-direction: column; gap: 4px; }
 .ledger .tool-steps li { display: block; padding: 0; animation: none; box-shadow: none; border: 0; }
 .ledger .tool-steps li b { font-weight: 600; font-size: var(--fs-sm); }
+/* phases: finished ones fold into one summary row, aligned with the rows' time column */
+.ledger .phases { display: flex; flex-direction: column; gap: 6px; }
+.ledger details.phase > summary { list-style: none; display: grid; grid-template-columns: 22px 54px minmax(0, 1fr); gap: 0 10px; align-items: center; padding: 6px 8px 6px 10px; border-radius: var(--r-sm); cursor: pointer; color: var(--n-700); font-size: var(--fs-sm); background: var(--n-25); border: 1px solid var(--n-100); transition: background-color 0.15s, border-color 0.15s; }
+.ledger details.phase > summary::-webkit-details-marker { display: none; }
+.ledger details.phase > summary:hover { background: var(--n-50); border-color: var(--n-200); }
+.ledger details.phase > summary .time { padding-top: 0; }
+.ledger .ph-chev { width: 20px; height: 20px; display: grid; place-items: center; }
+.ledger .ph-chev::before { content: ''; width: 6px; height: 6px; border-right: 1.75px solid var(--n-500); border-bottom: 1.75px solid var(--n-500); transform: rotate(-45deg); transition: transform 0.2s var(--ease); }
+.ledger details.phase[open] > summary .ph-chev::before { transform: rotate(45deg) translate(-1px, -1px); }
+.ledger .ph-main { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ledger .ph-name { font-weight: 700; color: var(--n-900); font-size: var(--fs-sm); flex: none; }
+.ledger .ph-count { font-size: var(--fs-xs); color: var(--n-500); flex: none; font-variant-numeric: tabular-nums; }
+.ledger .ph-sum { font-size: var(--fs-xs); color: var(--n-500); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger details.phase[open] > summary { background: transparent; border-color: transparent; }
+.ledger details.phase[open] > ul { margin-top: 2px; }
+.ledger details.phase-paypal > summary .ph-name { color: var(--pp-navy); }
+/* an open PayPal phase reads as one blue block instead of a stack of tinted cards */
+.ledger details.phase-paypal[open] > ul { background: #f6faff; border: 1px solid var(--pp-line); border-left: 3px solid var(--pp-blue); border-radius: var(--r-md); padding: 2px 0; gap: 0; }
+.ledger details.phase-paypal[open] > ul > li { border-left-color: transparent; background: transparent; }
+.ledger details.phase-paypal[open] > ul > li + li { box-shadow: 0 -1px 0 #e3eefb; }
+.ledger details.phase-paypal[open] > ul > li.cat-milestone { background: var(--ok-soft); border-radius: 0; }
+.ledger details.phase-paypal:not([open]) > summary { background: #f6faff; border-color: var(--pp-line); }
+.ledger details.phase.current > summary .ph-name::after { content: 'now'; margin-left: 6px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent-strong); }
 .ledger .empty-log { color: var(--n-500); font-size: 13px; padding: var(--sp-3) 0 var(--sp-1); }
 
 /* ---------- flow panel content ---------- */

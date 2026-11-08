@@ -164,7 +164,33 @@ function ToolGroup({ items }: { items: LedgerEvent[] }) {
   );
 }
 
-function Ledger({ events }: { events: LedgerEvent[] }) {
+/** The story in phases, so a finished phase can fold into one summary row. PayPal stays its own, always-open phase. */
+type Phase = 'start' | 'intake' | 'plan' | 'offers' | 'approval' | 'paypal' | 'move';
+const PHASE_LABEL: Record<Phase, string> = { start: 'Start', intake: 'Intake', plan: 'Plan', offers: 'Offers', approval: 'Approval', paypal: 'PayPal', move: 'Board move' };
+const TOOL_PHASE: Record<string, Phase> = {
+  record_rush_job: 'intake',
+  plan_bump_options: 'plan', choose_bump_plan: 'plan', draft_offer: 'plan',
+  accept_offer: 'offers', counter_offer: 'offers', reply_to_customer: 'offers', decline_offer: 'offers', escalate_to_owner: 'offers',
+  draft_move_offer: 'move',
+};
+function phaseOf(e: LedgerEvent, current: Phase): Phase {
+  const cat = catOf(e);
+  const t = e.title;
+  if (cat === 'paypal' || cat === 'milestone' || /^Capture-less booked/.test(t)) return 'paypal';
+  if (e.source === 'system' && /reset/i.test(t)) return 'start';
+  const tool = toolOf(e);
+  if (tool) return TOOL_PHASE[tool] ?? current;
+  if (/^(Rush request understood|Request unclear)/.test(t)) return 'intake';
+  if (/^(Room found|No room)/.test(t)) return 'plan';
+  if (/^Template offer/.test(t)) return current === 'move' ? 'move' : 'plan';
+  if (/^(Board move reviewed|Board move discarded|Owner applied the board move)/.test(t)) return 'move';
+  if (/approval|^Owner (approved|retried)/i.test(t)) return 'approval';
+  if (/^(Offers sent|Board move: offer sent|Reply from|Counter|Answered|Escalated|Message blocked)|(accepted|declined)( the board move)?$/.test(t)) return 'offers';
+  return current;
+}
+
+/** Consecutive tool calls fold into one row; input and output are newest first. */
+function foldTools(events: LedgerEvent[]): (LedgerEvent | LedgerEvent[])[] {
   const rows: (LedgerEvent | LedgerEvent[])[] = [];
   for (const e of events) {
     const last = rows[rows.length - 1];
@@ -172,6 +198,51 @@ function Ledger({ events }: { events: LedgerEvent[] }) {
     else if (e.source === 'tool' && last && !Array.isArray(last) && last.source === 'tool') rows[rows.length - 1] = [last, e];
     else rows.push(e);
   }
+  return rows;
+}
+
+interface PhaseBlock { phase: Phase; events: LedgerEvent[] /* newest first */ }
+
+function PhaseGroup({ block, open, current }: { block: PhaseBlock; open: boolean; current: boolean }) {
+  const chrono = [...block.events].reverse();
+  const keyTitles = chrono.filter((e) => e.source !== 'tool').map((e) => (e.amountChf !== undefined ? `${e.title} ${chf(e.amountChf)}` : e.title));
+  const tools = chrono.length - keyTitles.length;
+  const summary = [...keyTitles, ...(tools ? [`agent used ${plural(tools, 'tool')}`] : [])].join(' · ');
+  // Follows the default (a phase folds when the next one starts) but keeps the owner's own clicks.
+  const [isOpen, setOpen] = useState(open);
+  useEffect(() => setOpen(open), [open]);
+  return (
+    <details className={`phase phase-${block.phase}${current ? ' current' : ''}`} open={isOpen} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>
+        <span className="ph-chev" aria-hidden />
+        <span className="time">{time(chrono[0].at)}</span>
+        <span className="ph-main">
+          <span className="ph-name">{PHASE_LABEL[block.phase]}</span>
+          <span className="ph-count">{plural(block.events.length, 'event')}</span>
+          {/* only while folded, so the same words never sit hidden next to the real rows */}
+          {!isOpen && <span className="ph-sum">{summary}</span>}
+        </span>
+      </summary>
+      <ul>
+        {foldTools(block.events).map((r) => (Array.isArray(r) ? <ToolGroup key={r[0].id} items={r} /> : <LogItem key={r.id} e={r} />))}
+      </ul>
+    </details>
+  );
+}
+
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+function Ledger({ events }: { events: LedgerEvent[] }) {
+  // Walk the log oldest → newest, give each event a phase, and cut a new block whenever the phase changes.
+  const blocks: PhaseBlock[] = [];
+  let current: Phase = 'start';
+  for (const e of [...events].reverse()) {
+    current = phaseOf(e, current);
+    const last = blocks[blocks.length - 1];
+    if (last && last.phase === current) last.events.unshift(e);
+    else blocks.push({ phase: current, events: [e] });
+  }
+  const lastReset = blocks.map((b) => b.phase).lastIndexOf('start');
   const meaningful = events.some((e) => !(e.source === 'system' && /reset/i.test(e.title)));
   return (
     <section className="ledger" aria-label="PayPal and agent log">
@@ -184,9 +255,16 @@ function Ledger({ events }: { events: LedgerEvent[] }) {
           <span><i style={{ background: 'var(--bad)' }} />Guardrail</span>
         </div>
       </div>
-      <ul aria-live="polite" aria-relevant="additions">
-        {rows.map((r) => (Array.isArray(r) ? <ToolGroup key={r[0].id} items={r} /> : <LogItem key={r.id} e={r} />))}
-      </ul>
+      <div className="phases" aria-live="polite" aria-relevant="additions">
+        {blocks
+          .map((b, i) => {
+            const isCurrent = i === blocks.length - 1;
+            // Finished phases fold into one row (click to expand); the current phase and this run's PayPal events stay open.
+            const open = isCurrent || (b.phase === 'paypal' && i > lastReset);
+            return <PhaseGroup key={b.events[b.events.length - 1].id} block={b} open={open} current={isCurrent} />;
+          })
+          .reverse()}
+      </div>
       {!meaningful && <p className="empty-log">Nothing has happened yet. Every agent decision, guardrail check, owner approval and PayPal call will appear here, newest first.</p>}
     </section>
   );
