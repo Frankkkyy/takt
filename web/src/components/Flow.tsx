@@ -250,22 +250,25 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
               <p>{plan.justification}</p>
             </div>
           )}
-          {plan.options.length > 1 && (
-            <table className="options">
-              <thead><tr><th>Option</th><th>Ask</th><th>Comp.</th><th>Net</th></tr></thead>
-              <tbody>
-                {plan.options.map((o) => (
-                  <tr key={o.optionId} className={o.optionId === plan.chosenOptionId ? 'chosen' : ''}>
-                    <td>{o.optionId}{o.optionId === plan.chosenOptionId ? ' ✓' : ''}</td>
-                    <td>{o.bumps.map((b) => state.customers.find((c) => c.id === b.customerId)?.name ?? b.customerId).join(', ') || '—'}</td>
-                    <td>{chf(o.compensationTotalChf)}</td>
-                    <td>+{chf(o.netUpliftChf)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          <ul className="explain">{plan.explanation.map((e, i) => <li key={i}>{e}</li>)}</ul>
+          <details className="more" open={!plan.feasible}>
+            <summary>Details: {plan.options.length > 1 ? `${plan.options.length} options compared, ` : ''}planner notes</summary>
+            {plan.options.length > 1 && (
+              <table className="options">
+                <thead><tr><th>Option</th><th>Ask</th><th>Comp.</th><th>Net</th></tr></thead>
+                <tbody>
+                  {plan.options.map((o) => (
+                    <tr key={o.optionId} className={o.optionId === plan.chosenOptionId ? 'chosen' : ''}>
+                      <td>{o.optionId}{o.optionId === plan.chosenOptionId ? ' ✓' : ''}</td>
+                      <td>{o.bumps.map((b) => state.customers.find((c) => c.id === b.customerId)?.name ?? b.customerId).join(', ') || '—'}</td>
+                      <td>{chf(o.compensationTotalChf)}</td>
+                      <td>+{chf(o.netUpliftChf)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <ul className="explain">{plan.explanation.map((e, i) => <li key={i}>{e}</li>)}</ul>
+          </details>
           {plan.offers.map((o) => {
             const c = state.customers.find((x) => x.id === o.customerId)!;
             return (
@@ -280,7 +283,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
           <div className="kv"><span>Compensation budget (code cap)</span><b>{chf(plan.budgetCapChf)}</b></div>
           <div className="kv total"><span>Net uplift</span><b className="good">+{chf(plan.netUpliftChf)}</b></div>
           {plan.feasible && (
-            <button className="btn primary" disabled={!!busy} onClick={() => run('send', '/api/offers/send')}>
+            <button className="btn primary cta-sticky" disabled={!!busy} onClick={() => run('send', '/api/offers/send')}>
               {plan.offers.length ? `Send ${plan.offers.length} offer${plan.offers.length > 1 ? 's' : ''}` : 'Book the rush (nobody moves)'}
             </button>
           )}
@@ -303,7 +306,7 @@ export function Flow({ state, onState, draft: text, setDraft: setText }: { state
           <ul className="checks">
             {state.approval.checks.map((c) => <li key={c.label} className={c.ok ? 'ok' : 'fail'}>{c.ok ? '✓' : '✗'} {c.label}</li>)}
           </ul>
-          <button className="btn primary" id="approve-moves" disabled={!!busy || !state.approval.checks.every((c) => c.ok)} onClick={() => run('approve', '/api/approval/approve')}>
+          <button className="btn primary cta-sticky" id="approve-moves" disabled={!!busy || !state.approval.checks.every((c) => c.ok)} onClick={() => run('approve', '/api/approval/approve')}>
             {busy === 'approve' ? 'Moving money…' : 'Approve & send to PayPal'}
           </button>
         </section>

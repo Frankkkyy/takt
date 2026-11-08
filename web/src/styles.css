@@ -303,3 +303,10 @@ p.small { font-size: 12px; }
 .move-card .lang { font-size: 10px; font-weight: 700; background: var(--navy); color: #fff; border-radius: 3px; padding: 1px 4px; }
 .move-card .linkish { border: 0; background: none; color: var(--navy); text-decoration: underline; cursor: pointer; font-size: 11px; padding: 0; }
 .move-card .approval h3 { margin: 6px 0 2px; font-size: 14px; }
+
+/* Make room / Owner OK: secondary detail folds away, the main action stays on screen */
+details.more { font-size: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fbfcfe; }
+details.more summary { cursor: pointer; color: var(--navy); font-weight: 600; }
+details.more[open] { display: flex; flex-direction: column; gap: 8px; }
+details.more table.options { margin-top: 6px; }
+.btn.cta-sticky { position: sticky; bottom: 12px; z-index: 2; box-shadow: 0 0 0 6px var(--panel), 0 6px 18px rgba(31,58,95,.25); }
