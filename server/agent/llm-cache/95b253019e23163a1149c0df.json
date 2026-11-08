@@ -1,0 +1,52 @@
+{
+ "key": "95b253019e23163a1149c0df",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:32:39.832Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwTjUBFeTq61zrz5sCn",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "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"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01NvanBVgEaGEnbtf1Ywpv5a",
+    "name": "accept_offer",
+    "input": {
+     "offer_id": "OF-MOVE-J-2044",
+     "message": "Monsieur Rochat, merci pour votre accord. Nous confirmons la livraison de votre commande J-2044 (cadres de table) jeudi, avec CHF 70 de moins à payer lors de l'expédition. Les livraisons ont lieu en fin de journée ; nous ne pouvons donc pas garantir une heure le matin. Cordialement, Werkstatt Reuss",
+     "message_en": "Mr Rochat, thank you for agreeing. We confirm delivery of your table frames order (J-2044) on Thursday, with CHF 70 less to pay when the order ships. Deliveries are made at the end of the day, so we cannot guarantee a morning delivery. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2768,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2768,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 978,
+   "output_tokens_details": {
+    "thinking_tokens": 635
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

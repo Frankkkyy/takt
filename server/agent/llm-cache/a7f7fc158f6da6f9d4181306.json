@@ -1,0 +1,77 @@
+{
+ "key": "a7f7fc158f6da6f9d4181306",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:04.528Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwLiPVb9JFmjGkJ9ZjM",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS3QcKEAgTGAI4AUIIdGhpbmtpbmcSDLEGF49uEIZV7P2bYBoMnQEo39QPYQva47XcIjCZ2g79cXo5VjgUzL7muDNsHdQwEdsX5WXWNEUh34iIpDANUbR7y3UOUE0Odf5c73oq+gad8ded6xqvUeTzUHcEKzCwgsE5itUfGjE5UFTTxZ2Uxgx3c1W6rR0Z/J0YwIJ8AVQq6VPFCVHzjfl6n4MW55AW85nk3K9vQHquYlgzD6tKs0obnQZt7+ZqqoDCKdorbuJALD8aeM21y48SZPa4b6jrrNT6AmdUBHo2ZCRnfMksbhw0p1COQe/pWv8gLWg8ZPDGgP3hpfiHa3TvtJipcgCXq7H8Y9DN++poTFyhEB1Nf7e8mPOIjszBKwMBxdMrvNOXC6/YtLMeef4cv+aSujHjXdB3GjscojjT4dMx3JTs71T1CGa9cyGto1YLoin2zrG7CdlLGN3D+q8h58cfFDQi1/Iyd2LtJVCn4XzWOuTgdfEZ5CLgqwy8B8dgvU1QB8i1BGOY9Ki8wW8CuK+cBREyunY4ctI5c2v67OL9wagclRu7y9arONPP5SzvPTLg5cl0l+W6i/koGx9ZEF0GLilwe4J4BFK4vbMc9jqzDyKnTsGTEu1YDGY/5Kqg6A7lkKwa2psDYxe/hwuLYfNYpyPLkmC6T6LfJ/xIsnmHteVrNdYdclmw/Ow8V0SvIJDjfdWVcIlxgKaG7GuYNASHWyEpm45PnDzxEB37T56Lx7QDa9us5V+C79Dz1babdVZ2RM09Fkwreqscaubpn2M76aF2kmovbAN2JK0p+CADEaY/eHmrYU8emY0wG8J9HSqj0gUE2GhSHhgIltUscYjTqB7EnthSvTd+wcEhf+p1ZuNJNzyPIc0rOLpS+Q6IOOeanV/Q9w83LqZzpCUAhj4WPJmnVJzNEEjPw53sOW+o9IVy4iFp7sZz766d1bupWp7u73qeOdVD4MXPrmqe/2vp+QB8emYert8kLtutINuRbZhuRIyxKid211cJgn12/jFfhx3r0vZCejIEii0s9zl2jDeV54CZZAJnvAzdGl1xggywMP0QZQFXWWU1Yy6BqynJgmVTBErkI8NkNwWRMc++DGOIGpxv8/YYAdqziAwvWZQxKKkpu9yu5dydHpzcGTJSNNZnJ0QwYB7xCRHrId+e5InCM2gHAJ8aMA4KL9h4H8hkI6mURtIxRDNk2wMywbDBWc7feNk+VLYGOSMnZetogfORMmQ/mHMYW5bo4s2ujj6Vk8TEOFrIulNXRh/hvojHWcr+ragQejHaxexjOMP7l80EyfrPtjri47e/sBgB"
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01V6GdMnCRMjRVcGj4FDZu55",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Option 1A gives the highest net uplift, CHF 575 after CHF 95 compensation on a CHF 670 rush premium, within the 60% cap of CHF 402. Atelier Rochat moves one day for CHF 50 less at shipment; its exhibition is three weeks away and it accepted up to four days. Studio Meier Licht, prepaid, moves one day for a CHF 45 PayPal Payout. Keller Antriebe AG and Alpine Drone Works are untouched."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01DZZtLG9MYp5Q1ZRu3tyttd",
+    "name": "draft_offer",
+    "input": {
+     "job_id": "J-2044",
+     "message": "Bonjour Monsieur Rochat,\n\nPour aider un autre client confronté à une urgence, nous vous demandons si votre commande de cadres de table peut être livrée mercredi au lieu de mardi. En contrepartie, vous paierez CHF 50 de moins lorsque la commande sera expédiée. Merci de nous indiquer si vous acceptez.\n\nCordialement,\nWerkstatt Reuss",
+     "message_en": "Dear Mr Rochat,\n\nTo help another customer facing an emergency, we would like to ask whether your table frame order can be delivered on Wednesday instead of Tuesday. In return, you will pay CHF 50 less when the order ships. Please let us know whether you accept.\n\nKind regards,\nWerkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01AbqPmHTs7mY83EwCeX7rkZ",
+    "name": "draft_offer",
+    "input": {
+     "job_id": "J-2047",
+     "message": "Grüezi Frau Meier\n\nUm einem anderen Kunden in einem Notfall zu helfen, bitten wir Sie, die Lieferung Ihrer Lampenschirme von Mittwoch auf Donnerstag zu verschieben. Als Dank erhalten Sie CHF 45 per PayPal-Auszahlung. Wir danken Ihnen für Ihr Verständnis und bitten um kurze Rückmeldung.\n\nFreundliche Grüsse\nWerkstatt Reuss",
+     "message_en": "Dear Ms Meier,\n\nTo help another customer facing an emergency, we ask you to move the delivery of your lamp shades from Wednesday to Thursday. As thanks, you will receive CHF 45 by PayPal Payout. Thank you for your understanding; please let us know briefly.\n\nKind regards,\nWerkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 727,
+   "cache_read_input_tokens": 2655,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 727,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 1122,
+   "output_tokens_details": {
+    "thinking_tokens": 161
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

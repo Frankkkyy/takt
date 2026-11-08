@@ -1,0 +1,51 @@
+{
+ "key": "24f7dcf80743289a4b17cd77",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:23.014Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwNHpgChngwat2hDdWQ",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS+wUKEAgTGAI4AUIIdGhpbmtpbmcSDPVbt9WihJ3iYhQjaxoM2H3qPmD0ybuoqJO/IjCm4hSJSG29wvd5aRPesuw7fh2GnMrL2J/VkyhlfLsiHaT5SN2O3OMlRxP3fChCB3IqmAXqGFfWIQSZEtuwS0QU/CCoPrhBc5ccXCL/Q5wlChuB8udV2KtDA9Y2GaBzjxCOW9w8jEHWjkUxVe/C/aplF3T4zv70Ithx3aq3CKnd4n19ivyd6nBDUqemLsoItdtXn+k7Ze9d57xQk/aZGkDMvvUqhtsYe55zt/q7vg3Sqfaurpd4L/UiVJNWTldqrbPUY/JyVb46EF9zdPrVYwC0nX5ywvkAEmNmMle9DuTakanTxT4tzFqQYX/TvZebh3bOUlAXLaITk1IrHwGjpL7WXG3IlvU/A1hSHZy1bKU3D10FXlWV9KbLx9lRCj0SNDyfzJvHvsgKRhHg0lFmXLu2yz8dDXJDUuDocNHuPP3xSOOuXy4rJcjepHelkFOsQegLvNefHbJUawB53ia27kukdI8Y4hSHpaQGrhuTuQFwjMbjPfgorET+y7/KiU+UjobmSZCocjbO0G7yab6jETTz/zucdOtPwJ5TbDIKI6hBvAVLMXLQamtrdbBdBwbJaEBVaRrSBunF/N5DKznLuXrn0+asbyuKoWKLEiCFT/sdxrIZYYO2+2flE+YIgXjIRBcDlaim3/B0Y8fpzFLMcBU3X27+mXt6hIHiEbK2LPapKvIhMdbci0JTNeeztngAT4Y/xwABJ+8MnS0mkoupIIUtDYc2mj3fbjHpSzvujAHHkT3nzmMo5INYxJziH8u7cRIfscMy0XZRYifKcxX8c80909+qiz5X8Pn4EgzwoXKIipgWkflNFuBdLFRTdXVMmECEZJW7VxBccebLCeXQKeGhJvLd+/dR+AFIUj1BpvU8i4aNxrBm5g+EwXMLTeLsZMTvlvma5sxFYT9O1oyOKxNfyoAM5t3E9uhcBisxX++mZJK43v2fxvAEF0S3GAE="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_0156pr6xbbCANLC4EdsuxYzM",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Only one feasible option, and it is cheap: two one-day delays for Brunner Velos (CHF 55, paid at shipment) and Studio Meier Licht (CHF 45 by PayPal Payout, prepaid). Total compensation is CHF 100 against a CHF 685 rush premium, leaving a net uplift of CHF 585. Both customers are flexible within their limits, and Keller Antriebe AG and Alpine Drone Works are untouched."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 420,
+   "cache_read_input_tokens": 2647,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 420,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 283,
+   "output_tokens_details": {
+    "thinking_tokens": 53
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

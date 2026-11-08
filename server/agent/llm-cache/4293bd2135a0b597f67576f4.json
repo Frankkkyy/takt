@@ -1,0 +1,51 @@
+{
+ "key": "4293bd2135a0b597f67576f4",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:30:51.724Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwKxsbZRxr9jy4aWnAJ",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQSxAcKEAgTGAI4AUIIdGhpbmtpbmcSDFnyY2naXwmzF3A4oBoMUgfgwSFVffrrmnPgIjA+nolghzpRsXwB6+X7v3Bx8IR2N8PLSGo4wroSHLF4nqNN1KdAj1cHK7KgTSL1tG0q4QbBxeYXGeGpmM3WjfYOGjzLwADVZHt3atPBXwqTbK/t+PSmU6LYi2upum74nS8b23j7/f7G56ghi05zgepzYmnqM0FXtOILIpAq1P4D4crY9q0KEBkkR12eqJaE6SvFH68V8NNRIYxbYiFSVWoz2ZFaC4IfgDsdktZ2qUAtAvYtmUkTyuVVVu+J2NdQxFjO+pVS3fs9JWIwrhlyoK/4quVKVLv1uTC7s66IJ8ZofYXu/zsy6hXzJ9Sq//6Lt0HK0N59lofhVfI1XWMMmh9HuNPq6VcyhwU+TDwS7nEnGVyXU+qlIRLIr2T3Nfr5JJ6w8i+8T5U9h92GGeNXocQEHirQz/XgRbaeeIauOhzosY0P2CKJjnPFUmPE8kf6lFOBs8FiYvNbh6lost8VOHYGDU56LmMH7zda1cZAx0HKQ/hyHPc4HEqnRfkDq8lg1s/b8lHVAvwyZNLR4/j6ap2jHkoj2jbRyk9AdYtqfKhrzt5iuWeAljL0creJGsBkfaav+fpq7MtSU4MnRxfrzr1HLu4c/v9bIQgpkdVsn/DbqO0Yyv045OffJkoTEcCRi/yTRq+OGoC+u+0FRLoOqM07XmPhGeBqHO6CVp6hxNBfAb0utFYFv/xFZYG40XxN9bPelNybs+5wNQ9rGtFlCsWGJG+r6JlCPuD6q7kD0FdCMtjakRqvvZd5qrvtiwUTFQpBb13yawGIuMrbrDBBzBGWrGjJgINcVzYa+LrJsL9Fk8mSTbapDsiFeGk83uW9Nv2uADAEMpt/5gOyAvXivaDhe/+wMJYxoIuc5pd2BiPRjDS6uB6We0Zoc+/T1VeWp4V3w4gB84nLq4iPQ9t88Z7m1hnaC438k+3HDKiZiyqnuty9fAEGVYdL3AspEvnV2UhVHtvO2AXxYUYJTfhn0Am2CzolzAvyQ82mjdIcCMamIO5puSiS3e53dInQh28QQbSwriabklZqNXyZesmrTD6C7TC36RMQ5lO2jHOtfaRcNvmpQVMCVBPaMIQ5Ky9kykUCIEWZDMyZr3kFZzBo3Mn6Re8I6ARe+oz0fa4DqIS1FbBa4vDyC+PYZXh/aAupDtTU91qorWNsT1/pvg+wqttkbmLO6bvo5szNdbaDAEigIqYEwt1Ia/7faCH6dJD4yN2BU2InGAE="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01VHQ2xYBdw1YjeyjTLWVyEN",
+    "name": "choose_bump_plan",
+    "input": {
+     "option_id": "1A",
+     "justification": "Option 1A is the cheapest workable plan: CHF 95 total compensation, net uplift CHF 590 on the CHF 685 rush premium. Atelier Rochat (CHF 50, one day, flexible up to 4 days) and Studio Meier Licht (CHF 45, one day, flexible up to 5 days, prepaid) both stated flexibility well beyond the one-day move. Keller Antriebe AG and Alpine Drone Works are untouched."
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 727,
+   "cache_read_input_tokens": 2647,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 727,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 381,
+   "output_tokens_details": {
+    "thinking_tokens": 149
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

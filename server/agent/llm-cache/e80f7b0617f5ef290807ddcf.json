@@ -1,0 +1,54 @@
+{
+ "key": "e80f7b0617f5ef290807ddcf",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:13.002Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwMUZoxZdfCQmyqGoWB",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS0AcKEAgTGAI4AUIIdGhpbmtpbmcSDHp5B64pBGXnsH81vBoMtACLM4Bh76UMr07hIjCBoE5osJ6GeYrytuShlKeU3IVuy+MwCYIUfMIqfsDz7BF2Sk/orP3F6jLx/9YjElUq7QZdB0gjF/IB/rebDff9UheyEMGLWu7o94cjdOhfDL08cj59h4q17PN/1oQtoVUmsxSixENp+bxDMOlU9b6WPoIy/xMkqMciBEPbq6kfItlAtZzFAGbXjn8/ve69OzYij3/paPC2z6f9tDw3MmakzRA6GPNTC7HkWe5vn8YAjxg4mCnqdEstQlxqgibsrpd63izSDY1WWlf3f8i4f8kCoj2hVDbKhrsozlelBMWBsaZj9fOkuznC0AP/dkK5rUavkc4EBuF/lFntc+30acYbUyqn5rk/pVfx97XUmBq3HytxSM742eQqqs54lwACvPcIkJ4HcZp3+fy2eBpILNAulr32woR4lt7KzBtwWcBkgiMjb731IZAtqCY213CIT50TYV9LfrnUAFRo2POoeVaANO3K2DXA7lyhM1RBHuIpcqISbLrofvf1QYUE7gPq6PfB8hOBzmpCjJqTzzDPDLczNAVp7wKa2Ux3WucYzbfnzFHLH7wbp8JlzhEMi/truXqUaNoxY1ItmHHvU5RQqGDhYgOhwitvVCHyKdsPHV0h8VLrC5GJkVueJn+36FTMYGm06C5TiEMgTPFkaiNkoCHnREXrgbV2JEHcG5Cf6xQn30/dXWBmskOVoqm4LsadK4djM52vT3Z50HKDb6C72jk63z0r0GldPxZzcAWgZ9F8vBbUAZD3Gsi4zk8nuoalrToQeOTqSjFns0yZN7MNoVWovkn4Vy74QNBdD7Cp67jSjVvVkdbEO3dz20w6uFlsWvVLcvdRTdwQuKZ2eheHsR1adm3CPRMmDfZFRipkak34k7RqNH5TpOo6Jyp/NGVBDtXAjqJ6sOIpqHE6TJrQoFbcEg/AgiUrJcDN3tnYfnA0mA1vrJycw3Yyh1xYYABcSH8plsN4zA7uJr+Qn+N1QJ7LqNg60iLtvfrgwlHm9MVVksOVtGbyKaTiJ1vbSEyOiBfs9Dt3H4M/QE9m5x2wYwPA7r+2bH8sLa+/L/Hdfh7MAMbmGW+nIXqwcs9i4aIa2yftBeS3hriW5kXMNLIcq4+ZalahGK5bz8yhRyl8mJvyV4CDU+FLTS6r2XLgRZVjeTsv520UzFwwNYttt5IHQgUdmpxF6sD9sWcRm3a5zNQuVDP9pnKzEjWhJpO/Zr42ixsl/bAIbKbxpmR4H8ktBUkEGAE="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01ScTLEBHU8uLV8wvDk95YaP",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "compensation_chf": 70,
+     "delivery_day": 3,
+     "message": "Cher Monsieur Rochat, merci pour votre réponse. Nous acceptons votre proposition : livraison de vos cadres de table jeudi, en fin de journée, et une réduction de CHF 70 sur votre commande. Lors de l'expédition, vous paierez donc CHF 70 de moins sur votre autorisation PayPal existante. Cordialement, Werkstatt Reuss",
+     "message_en": "Dear Mr Rochat, thank you for your reply. We accept your proposal: delivery of your table frames on Thursday, at the end of the day, and a reduction of CHF 70 on your order. When the order ships, you will therefore pay CHF 70 less on your existing PayPal authorization. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2730,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2730,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 550,
+   "output_tokens_details": {
+    "thinking_tokens": 151
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

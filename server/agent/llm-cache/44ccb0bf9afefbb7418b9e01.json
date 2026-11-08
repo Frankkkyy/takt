@@ -1,0 +1,54 @@
+{
+ "key": "44ccb0bf9afefbb7418b9e01",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:31:19.863Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwMx2okSv4vCy4m9zFx",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "thinking",
+    "thinking": "",
+    "signature": "CAQS/AwKEAgTGAI4AUIIdGhpbmtpbmcSDJcZaPa9MFBqOKtffBoMfVtrE5sMfkCfj0MtIjBpH0C9+L+ev9pKlYHVxqKW0Su+yaGdK2NE96owuUqT6zlbhbEKdiMT8poyKE0V5JoqmQx81r8PsSBC4jm9+b3tk5oLXUp5MeSyxgAp76YHDY6V8hA2hhy20Lr0A1CgTP7XhYrxiEfNqqdAjMeAQ8ZjPtoIaD8drJBl7Gak7cwk+g9XSIIHrAgdaY/zzeMSIA+nTpFWvG8cy5dDy3VVMe1vSB5k3Woe95PgEdzfGu+1gO7jaefJU5fgqbSV9ON4gfDO5iYkiaPl5Ybyoy3hrXMGuCixancltdrgXYumSl4yDOWlYW1du5rhnBncpjPc+0aUXW3z4guHb7uBr1r7fxqUK8WUHZTr/uzj2lRNF/m521+GAn24YmkXT13ZtHLgt7UyIb37VwOP4rEMoM5aFOh3M83ypL+JsNwSTasreLBHC0e4d+Bcq5hOHovZ3CEMh6rGukwyit4UoZo9iIdu1U9xR5+VhKryKWhFi0tWTKALk52nuwLpSnxN8b80dFvm7JtpwWmlp+h26ZvP67sRx8gHqi0MwUUXYw8HSgqPv1Xy2zkRDUbbN+Co5c9w64N9aTj/y8Wu1OYCraNWsFxS3egckMm0IiSMuHQMcHA7UeCXzHT+odj1aHm4OPcIu96KGeninZNR3roxhexcbJK0rfjaTsjn5Q1yj8iVMmdcCnCDUEGbLmHbeSpwWxv+gSX5L7DE4TNdaL1Imy1n0fzRPyYKDMkOrfeiU6vPrRTwuSZ2yFjga5heViQ4fdQPsnBBENu8IOQ8mrzW0U7xKKzpfdJAbR+DI8qKKK4uCWYdScQZGQqk+o97LUEGH8+nrELMP0ABQZ/k/yVnnpArxDF6Rt/oO5WXV77x0oPco2cHqOHpOmqfY1yNSR63xEyCdiqONdGG0yWCSJ1Yq2ci6ag3aZJ+54F2b/VAoO/cb4GhOndCRkJV3+ua/Uv+dTX+5AZO+FoGbFipothI2l0BCVZyVhNXSw11SReVjv/IVLimmpk6Wl4XZAk3ytWUR9mgdny7V6ybXls48CRzbtWZvN+Ntc2mTEW7F1h7xcxGNnne4Cz7f0kbk44XAyQ2xuInbWKgdpIm4Xqmz/wAP+6Yc3t4zZnsM1fPvT6nnA6fN3I0dy9tXVXS009c8ahv+GZ5/cjgFpg9b9Ka4b8x98yBR+8mtGYC1Z3t4L7R5WunpgPa+5sMjenucx4wV2/fyxKe8dq1oEJ2Rh1MiHT91pS4qlI12t+yWUKKpb2WPZfZN93pnQpG+PfJdcABOY0H+qClEP59SWzHb+I3Eku9lltOoNLDsm20v3UlE9smBIZPfn84Sx6hcDefDngJuwoshMDV1JhepcWuE0C0WMhNN7Nl6tmMu01mmxc6NPqdEbvbK0Kc2T0Qc3IG6xGC+iM3B6xz1pnnrZkWHdMsWx1/wSEQnIe82GCKd66bU9nkdxmWQFyJj6wrGGS5D27qFBg1AVlhq7CN1WS7XD9DaFk8QEiiXgE6P6KDZ+zMWUAr7l21LfafPBC/4t1CS1Hrws1PRVUupG99/jiRk0SvYFUUmm/VcW7JBJK6c23L0y3cDryu4CFwHGQoWPQ+ODlRHsbaMEVvsDvqYHTMFUSvB7sYnKFlDwaRJV7n8UAQFiojtkbQZWVCSgNHJkhQ0KRqwAQBwdI570xwZ3qp1XO6nhDvlnAUO2poGPJX69oEVdZ/VI7okme0ilwC1B5IR/We/xAa4gY/fs3OiHdPv+UTxcCTkXnuo7RvZ138sKEWQB4jVMiuBkMzUITjhT97GOZ3DZVEQUlgaiQNxno+hlCWuPx41M389yXcZtyProUSZvSvOwXV47qkmId6B21RdXlP5jT32TKBBPZ/2QT3Hq3KkY3fXxYS64ovfTX16RmFbrDpkNYPGAyCU2IYfZDZRDWeNy9JjZL7EmGzhjPp72/ztB9RlX3fw1+uzDiigzS6ddwxByEhzoftESJDtG56BgNNBO4npjWk8oXMWr01i8c34nqXWfkx7K5C7Oi7XTW57NWZOTccJleTUoS49DXJEsdeE1ugPC1GvnUX/PxQT3cUNVCVADbdQJb9mAVkURXBqfCrO/ryhVjGLnH9NIDpzuh1mBLta1uKcQoB9rrtug9TJif3Qk3XQwvX8A0kevJFhwN5qJrVlGK+GAE="
+   },
+   {
+    "type": "tool_use",
+    "id": "toolu_01ASrbnziQ9Zum64Hnh9aiAL",
+    "name": "counter_offer",
+    "input": {
+     "offer_id": "OF-J-2044",
+     "compensation_chf": 70,
+     "delivery_day": 3,
+     "message": "Monsieur Rochat, merci pour votre accord. Nous acceptons votre proposition : livraison de vos cadres de table jeudi, et vous payerez CHF 70 de moins lors de l'expédition de la commande, via votre autorisation PayPal existante. Cordialement, Werkstatt Reuss",
+     "message_en": "Mr Rochat, thank you for your agreement. We accept your proposal: your table frames will be delivered on Thursday, and you will pay CHF 70 less when the order ships, through your existing PayPal authorization. Kind regards, Werkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 2743,
+   "cache_read_input_tokens": 0,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 2743,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 761,
+   "output_tokens_details": {
+    "thinking_tokens": 417
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}

@@ -1,31 +1,16 @@
 {
- "key": "cd0af0287b6a0a9f032eb845",
+ "key": "9790653a07360f70e7edbc67",
  "model": "claude-haiku-5-5",
- "recordedAt": "2026-11-04T20:28:19.988Z",
+ "recordedAt": "2026-11-08T18:29:20.571Z",
  "response": {
   "model": "claude-haiku-5-5",
-  "id": "msg_011CgiX3sXcxYUbbQuVdQVwi",
+  "id": "msg_011CgqwDLUuygM4ronqZjiM7",
   "type": "message",
   "role": "assistant",
   "content": [
    {
     "type": "tool_use",
-    "id": "toolu_01KFFs4AwYGfn9oF63VFpXqh",
-    "name": "plan_bump_options",
-    "input": {
-     "exclude_customer_ids": [
-      "keller",
-      "alpdrone",
-      "vuilleumier"
-     ]
-    },
-    "caller": {
-     "type": "direct"
-    }
-   },
-   {
-    "type": "tool_use",
-    "id": "toolu_019oQCeNnjNNw4mFbY59zdJZ",
+    "id": "toolu_012VMeR4w6FVZm8SgL3WMCsv",
     "name": "plan_bump_options",
     "input": {
      "exclude_customer_ids": []
@@ -41,13 +26,13 @@
   "stop_details": null,
   "usage": {
    "input_tokens": 4,
-   "cache_creation_input_tokens": 2173,
+   "cache_creation_input_tokens": 2646,
    "cache_read_input_tokens": 0,
    "cache_creation": {
-    "ephemeral_5m_input_tokens": 2173,
+    "ephemeral_5m_input_tokens": 2646,
     "ephemeral_1h_input_tokens": 0
    },
-   "output_tokens": 133,
+   "output_tokens": 60,
    "output_tokens_details": {
     "thinking_tokens": 0
    },

@@ -1,0 +1,46 @@
+{
+ "key": "9c91badd0311d2fa5aac6882",
+ "model": "claude-haiku-5-5",
+ "recordedAt": "2026-11-08T18:32:35.031Z",
+ "response": {
+  "model": "claude-haiku-5-5",
+  "id": "msg_011CgqwTZe5Cm1smFWzNUcsn",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+   {
+    "type": "tool_use",
+    "id": "toolu_01LFzhaWBCmCL1pAJ4TkxC9A",
+    "name": "draft_move_offer",
+    "input": {
+     "message": "Bonjour Monsieur Rochat,\n\nNous réorganisons nos machines cette semaine. Pourriez-vous accepter que votre commande de cadres de table (J-2044), prévue mardi, soit livrée jeudi ? Pour ce décalage, vous payez CHF 70 de moins : lors de l'expédition, nous prélevons CHF 70 de moins sur votre autorisation PayPal existante.\n\nSi cette date ne vous convient pas, votre date de mardi reste bien entendu valable.\n\nCordialement,\nWerkstatt Reuss",
+     "message_en": "Dear Mr Rochat,\n\nWe are re-planning our machines this week. Would you accept moving your table frames order (J-2044) from Tuesday to Thursday? For this delay, you pay CHF 70 less: when the order ships, we charge CHF 70 less on your existing PayPal authorization.\n\nIf this date does not suit you, your Tuesday date simply stays in place.\n\nKind regards,\nWerkstatt Reuss"
+    },
+    "caller": {
+     "type": "direct"
+    }
+   }
+  ],
+  "container": null,
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "stop_details": null,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 1625,
+   "cache_creation": {
+    "ephemeral_5m_input_tokens": 0,
+    "ephemeral_1h_input_tokens": 0
+   },
+   "output_tokens": 404,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "service_tier": "standard",
+   "inference_geo": "global",
+   "speed": "standard"
+  },
+  "diagnostics": null
+ }
+}
