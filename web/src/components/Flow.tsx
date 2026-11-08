@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { DemoState, Job } from '../../../shared/types';
 import { chf, dayLong, MACHINE_SHORT, plural, post } from '../api';
-import { OfferCard } from './Offer';
+import { OfferCard, withParagraphs } from './Offer';
 import { RUSH_SAMPLES } from '../samples';
 import { PayPalTrail, RushCheckout } from './PayPal';
 
@@ -109,7 +109,7 @@ function MoveCard({ state, onState, busy, run }: { state: DemoState; onState: (s
         <>
           <div className="why">
             <div className="why-head"><b>Offer to {c?.contact}</b>{m.draftedBy && <AgentTag by={m.draftedBy} state={state} />}</div>
-            <p><span className="lang">{o.lang.toUpperCase()}</span> {showEn ? o.messageEn : o.message}</p>
+            <p><span className="lang">{o.lang.toUpperCase()}</span> {showEn ? withParagraphs(o.messageEn, o.message) : o.message}</p>
             {o.lang !== 'en' && <button className="linkish" onClick={() => setShowEn((v) => !v)}>{showEn ? 'Original' : 'Show English'}</button>}
           </div>
           <p className="muted small">Nothing moves or pays yet. The customer can say yes, no, or answer in their own words; then you approve the money move.</p>

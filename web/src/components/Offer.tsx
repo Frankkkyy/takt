@@ -4,10 +4,22 @@ import { chf, dayShort, post } from '../api';
 import { REPLY_SAMPLES } from '../samples';
 
 const UI = {
-  en: { title: 'Can you wait a little?', accept: 'Accept', decline: 'No, keep my date', from: 'Planned', to: 'New date', you: 'You get', done: 'Thank you! Your new delivery date is confirmed.', no: 'No problem — your date stays.', write: 'Or answer in your own words…', send: 'Send', owner: 'The workshop will get back to you shortly.', less: 'PayPal · captured less', payout: 'PayPal Payout' },
-  de: { title: 'Können Sie etwas warten?', accept: 'Annehmen', decline: 'Nein, Termin behalten', from: 'Geplant', to: 'Neuer Termin', you: 'Sie erhalten', done: 'Danke! Ihr neuer Liefertermin ist bestätigt.', no: 'Kein Problem — Ihr Termin bleibt.', write: 'Oder in eigenen Worten antworten…', send: 'Senden', owner: 'Die Werkstatt meldet sich in Kürze bei Ihnen.', less: 'PayPal · weniger belastet', payout: 'PayPal-Auszahlung' },
-  fr: { title: 'Pouvez-vous patienter un peu ?', accept: 'Accepter', decline: 'Non, garder ma date', from: 'Prévu', to: 'Nouvelle date', you: 'Vous recevez', done: 'Merci ! Votre nouvelle date de livraison est confirmée.', no: 'Pas de souci — votre date reste.', write: 'Ou répondez avec vos mots…', send: 'Envoyer', owner: "L'atelier revient vers vous très vite.", less: 'PayPal · prélevé en moins', payout: 'Versement PayPal' },
+  en: { title: 'Can you wait a little?', accept: 'Accept', decline: 'No, keep my date', from: 'Planned', to: 'New date', you: 'You get', done: 'Thank you! Your new delivery date is confirmed.', newDate: 'new date', no: 'No problem — your date stays.', write: 'Or answer in your own words…', send: 'Send', owner: 'The workshop will get back to you shortly.', less: 'PayPal · captured less', payout: 'PayPal Payout' },
+  de: { title: 'Können Sie etwas warten?', accept: 'Annehmen', decline: 'Nein, Termin behalten', from: 'Geplant', to: 'Neuer Termin', you: 'Sie erhalten', done: 'Danke! Ihr neuer Liefertermin ist bestätigt.', newDate: 'neuer Termin', no: 'Kein Problem — Ihr Termin bleibt.', write: 'Oder in eigenen Worten antworten…', send: 'Senden', owner: 'Die Werkstatt meldet sich in Kürze bei Ihnen.', less: 'PayPal · weniger belastet', payout: 'PayPal-Auszahlung' },
+  fr: { title: 'Pouvez-vous patienter un peu ?', accept: 'Accepter', decline: 'Non, garder ma date', from: 'Prévu', to: 'Nouvelle date', you: 'Vous recevez', done: 'Merci ! Votre nouvelle date de livraison est confirmée.', newDate: 'nouvelle date', no: 'Pas de souci — votre date reste.', write: 'Ou répondez avec vos mots…', send: 'Envoyer', owner: "L'atelier revient vers vous très vite.", less: 'PayPal · prélevé en moins', payout: 'Versement PayPal' },
 };
+
+/**
+ * Recorded English translations come as one line while the original has paragraphs. For display only, put the
+ * greeting, the thank-you and the signature on their own lines like the original (the recorded text is unchanged).
+ */
+export function withParagraphs(en: string, original: string): string {
+  if (en.includes('\n') || !original.includes('\n')) return en;
+  return en
+    .replace(/^((?:Dear|Hello|Hi|Good (?:morning|afternoon))\b[^,.!?\n]{0,40},)\s+/, '$1\n\n')
+    .replace(/\s+((?:Thank you|Thanks|Many thanks|Kind regards|Best regards|Best wishes)\b[^.!]*[.!,]?)\s+(Werkstatt Reuss\.?)$/, '\n\n$1\n$2')
+    .replace(/([.!?])[ \t]+(Werkstatt Reuss\.?)$/, '$1\n\n$2');
+}
 
 export function OfferCard({ offer, state, onState, standalone = false }: { offer: BumpOffer; state: DemoState; onState: (s: DemoState) => void; standalone?: boolean }) {
   const [busy, setBusy] = useState(false);
@@ -40,7 +52,7 @@ export function OfferCard({ offer, state, onState, standalone = false }: { offer
         <div className="offer-shop">Werkstatt Reuss · via Takt</div>
         <h3>{t.title}</h3>
         <p className="offer-to">{c?.contact} · {c?.name}</p>
-        <p className="offer-msg">{showEn ? first?.textEn ?? offer.messageEn : first?.text ?? offer.message}</p>
+        <p className="offer-msg">{showEn ? withParagraphs(first?.textEn ?? offer.messageEn, first?.text ?? offer.message) : first?.text ?? offer.message}</p>
         {offer.lang !== 'en' && (
           <button className="link" onClick={() => setShowEn((v) => !v)}>{showEn ? 'Original' : 'Show English'}</button>
         )}
@@ -56,7 +68,7 @@ export function OfferCard({ offer, state, onState, standalone = false }: { offer
           <div className="thread">
             {rest.map((m, i) => (
               <div key={i} className={`bubble ${m.from}`}>
-                {showEn && m.textEn ? m.textEn : m.text}
+                {showEn && m.textEn ? withParagraphs(m.textEn, m.text) : m.text}
               </div>
             ))}
           </div>
@@ -83,7 +95,14 @@ export function OfferCard({ offer, state, onState, standalone = false }: { offer
             </div>
           </>
         )}
-        {offer.status === 'accepted' && <p className="offer-done">✓ {t.done}</p>}
+        {offer.status === 'accepted' && (
+          <div className="offer-done confirm" role="status">
+            <span className="confirm-check" aria-hidden>✓</span>
+            <b>{t.done}</b>
+            <span className="confirm-line">{chf(offer.compensationChf)} · {t.newDate} {dayShort(state.boardStartIso, offer.toDay, offer.lang)}</span>
+            <small>{offer.mechanism === 'reduced-capture' ? t.less : t.payout}</small>
+          </div>
+        )}
         {offer.status === 'declined' && <p className="offer-done muted">{t.no}</p>}
         {err && <p className="callout bad">{err}</p>}
       </div>
@@ -94,5 +113,5 @@ export function OfferCard({ offer, state, onState, standalone = false }: { offer
 export function OfferPage({ id, state, onState }: { id: string; state: DemoState; onState: (s: DemoState) => void }) {
   const offer = state.plan?.offers.find((o) => o.id === id) ?? (state.move?.offer?.id === id ? state.move.offer : undefined) ?? state.pastOffers?.find((o) => o.id === id);
   if (!offer) return <div className="center muted">This offer is no longer open. Open it from the same browser as the owner console (each browser runs its own demo).</div>;
-  return <div className="center offer-page"><OfferCard offer={offer} state={state} onState={onState} standalone /></div>;
+  return <div className="center offer-page"><OfferCard key={offer.id} offer={offer} state={state} onState={onState} standalone /></div>;
 }
