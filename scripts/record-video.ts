@@ -5,7 +5,7 @@
 //   ANTHROPIC_API_KEY= PAYPAL_MODE=sandbox npm run dev     (empty key = replay/fallback only: zero Claude spend)
 //   npm run record [baseUrl]
 //
-// Env: VIDEO_OUT (default ../../contests/paypal-ai/submission/video/takt-roughcut-v2.mp4)
+// Env: VIDEO_OUT (default ../../contests/paypal-ai/submission/video/takt-roughcut-v3.mp4)
 //      VIDEO_WIDTH (default 1920: the 1440×900 capture is upscaled (lanczos) to 1920×1200 so YouTube serves its 1080p+ bitrate)
 //      KEEP_CLIPS=1 (keep the raw Playwright .webm files and the cut segments next to the output)
 // Captions and the cursor dot are overlays injected into the recorded page only; the app itself is unchanged.
@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const base = process.argv[2] ?? 'http://localhost:5173';
-const out = path.resolve(process.env.VIDEO_OUT ?? new URL('../../../contests/paypal-ai/submission/video/takt-roughcut-v2.mp4', import.meta.url).pathname);
+const out = path.resolve(process.env.VIDEO_OUT ?? new URL('../../../contests/paypal-ai/submission/video/takt-roughcut-v3.mp4', import.meta.url).pathname);
 const W = 1440, H = 900;
 const OW = Number(process.env.VIDEO_WIDTH ?? 1920), OH = Math.round((OW * H) / W / 2) * 2; // output size (even)
 const work = mkdtempSync(path.join(tmpdir(), 'takt-video-'));
@@ -78,6 +78,11 @@ const OVERLAY = `(() => {
   #rec-note{position:fixed;right:18px;top:80px;z-index:2147483647;background:#111;color:#ffd75e;font:600 16px system-ui,sans-serif;padding:6px 12px;
     border-radius:6px;pointer-events:none}
   #rec-note:empty{display:none}
+  #rec-cap.side{left:calc((100vw - 426px) / 2);max-width:900px}
+  #rec-note.side{right:auto;left:12px;top:110px}
+  html.rec-stick .main > .left{position:sticky;top:var(--rec-stick-top,0px)}
+  html.rec-stick .main > .left .ledger{max-height:var(--rec-ledger-max,none);overflow:clip}
+  html.rec-stick .main::after{content:'';grid-column:1/-1;height:100vh}
   #rec-cursor{position:fixed;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;z-index:2147483647;pointer-events:none;
     background:rgba(255,200,0,.45);border:2px solid rgba(220,120,0,.9);transition:transform .12s}
   #rec-cursor.down{transform:scale(.7);background:rgba(255,120,0,.7)}
@@ -109,6 +114,26 @@ async function tag(page: Page, text: string) {
   await ensureOverlay(page);
   await page.evaluate((t) => { document.getElementById('rec-tag')!.textContent = t; }, text);
 }
+/** Caption + note centred under the left column (off the phones / right panel), or back to the frame centre. */
+async function side(page: Page, on: boolean) {
+  await ensureOverlay(page);
+  await page.evaluate((on) => ['rec-cap', 'rec-note'].forEach((id) => document.getElementById(id)!.classList.toggle('side', on)), on);
+}
+/** Recording-only: pin the left column while the right panel scrolls, so the frame is never half empty.
+ *  'board' pins it at the top (board + strip + newest log rows); 'log' scrolls it up to start at the Claude/Code strip. */
+async function stickLeft(page: Page, mode: 'board' | 'log' | null) {
+  await page.evaluate((mode) => {
+    const root = document.documentElement;
+    root.classList.toggle('rec-stick', !!mode);
+    const left = document.querySelector<HTMLElement>('.main > .left'), strip = document.querySelector<HTMLElement>('.cc-strip');
+    const top = mode === 'log' && left && strip ? -(strip.getBoundingClientRect().top - left.getBoundingClientRect().top) + 12 : 0;
+    root.style.setProperty('--rec-stick-top', `${top}px`);
+    // The log is cut at the bottom of the viewport (overflow:clip: not scrollable, so scrollIntoView cannot shift it).
+    const ledger = document.querySelector<HTMLElement>('.main > .left .ledger');
+    const ledgerTop = left && ledger ? ledger.getBoundingClientRect().top - left.getBoundingClientRect().top + top : 0;
+    root.style.setProperty('--rec-ledger-max', `${Math.max(200, window.innerHeight - ledgerTop - 16)}px`);
+  }, mode);
+}
 async function highlight(page: Page, loc: Locator, label = '', seconds = 2.5) {
   const b = await loc.boundingBox();
   if (!b) return;
@@ -136,9 +161,9 @@ async function clickOn(page: Page, loc: Locator) {
   await page.mouse.down(); await pause(page, 0.08); await page.mouse.up();
 }
 /** Smooth scroll so the element sits near the top (or `block`) of the viewport. */
-async function scrollTo(page: Page, loc: Locator, block: 'start' | 'center' | 'end' = 'start') {
+async function scrollTo(page: Page, loc: Locator, block: 'start' | 'center' | 'end' = 'start', wait = 0.9) {
   await loc.evaluate((e, block) => e.scrollIntoView({ behavior: 'smooth', block }), block);
-  await pause(page, 0.9);
+  await pause(page, wait);
 }
 async function scrollTop(page: Page) { await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' })); await pause(page, 0.9); }
 
@@ -236,36 +261,34 @@ await holdTo(page, LEN[4]);
 // Shot 5: offers + free-text answers (phones are embedded in the owner console).
 async function answer(who: RegExp, chip: string, pg = page) {
   const phone = pg.locator('.phone', { hasText: who });
-  await scrollTo(pg, phone, 'start');
+  await scrollTo(pg, phone, 'start', 0.7);
   await clickOn(pg, phone.locator('.demo-helper summary'));
   await clickOn(pg, phone.getByRole('button', { name: chip }));
-  await scrollTo(pg, phone.locator('.reply textarea'), 'center');
-  await pause(pg, 0.8);
+  await scrollTo(pg, phone.locator('.reply textarea'), 'center', 0.7);
+  await pause(pg, 0.5);
   await clickOn(pg, phone.locator('.send-reply'));
   return phone;
 }
+await stickLeft(page, 'log'); // the Claude/Code strip + agent log stay beside the phones
+await side(page, true);       // captions over the log, not over the phone's reply box
 await beginShot(page, 5);
 await caption(page, VO[5][0]);
 await clickOn(page, page.getByRole('button', { name: /^Send \d offers?$/ }));
 await page.locator('.phone').first().waitFor();
-await pause(page, 0.5);
+await pause(page, 0.3);
 await caption(page, VO[5][1]);
 const rochat = await answer(/Rochat/, 'Counter (FR)');
 await offCamera(page, () => rochat.locator('.offer-done').waitFor({ timeout: 45_000 }));
-await scrollTo(page, rochat.locator('.offer-done'), 'end');
+await scrollTo(page, rochat.locator('.offer-done'), 'end', 0.7);
 await caption(page, VO[5][2]);
-await pause(page, 1.2);
+await pause(page, 0.8);
 const showEn = rochat.getByRole('button', { name: 'Show English' }).last();
-if (await showEn.count()) {
-  await clickOn(page, showEn); await pause(page, 1.3);
-  const orig = rochat.getByRole('button', { name: 'Original' }).last();
-  if (await orig.count()) await clickOn(page, orig);
-}
+if (await showEn.count()) { await clickOn(page, showEn); await pause(page, 1.4); }
 await caption(page, VO[5][3]);
 const meier = await answer(/Meier/, 'Yes (DE)');
 await offCamera(page, () => page.locator('#approve-moves').waitFor({ timeout: 45_000 }));
-await scrollTo(page, meier.locator('.offer-done'), 'end');
-await pause(page, 0.8);
+await scrollTo(page, meier.locator('.offer-done'), 'end', 0.7);
+await pause(page, 0.6);
 await holdTo(page, LEN[5]);
 endSeg();
 const injectionAt = segs.length; // the injection insert (recorded later, in its own session) is spliced in here
@@ -342,7 +365,9 @@ if (await delivered.waitFor({ timeout: 60_000 }).then(() => true, () => false)) 
   endSeg();
 } else skipped.push('shot 7: payout SUCCESS line did not appear within 60 s');
 
-// Shot 8: committed.
+// Shot 8: committed. (Shots 5-7 keep the log pinned on the left and the captions under it.)
+await side(page, false);
+await stickLeft(page, null);
 await scrollTop(page);
 await page.mouse.move(5, 5);
 await note(page, '');
@@ -355,6 +380,7 @@ await highlight(page, page.locator('.net').first().locator('xpath=..'), 'net upl
 await holdTo(page, LEN[8]);
 
 // Shot 9: settle (capture less), timeline, live check, void.
+await stickLeft(page, 'board'); // board pinned beside the Settle panel: the shipped job turns striped and stays
 await beginShot(page, 9);
 await caption(page, VO[9][0]);
 const row = page.locator('.settle .offer-row', { hasText: 'J-2044' });
@@ -363,7 +389,8 @@ await highlight(page, page.locator('.step-head[data-step="settle"]'), '', 1.5);
 await clickOn(page, row.getByRole('button', { name: 'Ship' })); // the only amber Ship button (next job to ship)
 await offCamera(page, () => row.locator('.good').waitFor({ timeout: 30_000 }).catch(() => {}));
 await caption(page, VO[9][1]);
-await highlight(page, row, 'captured CHF 70 less', 3);
+await highlight(page, row, 'captured CHF 70 less', 2.2);
+await highlight(page, board.locator('.takt-ev.shipped').first(), '✓ shipped · stays on the board', 1.6);
 await caption(page, VO[9][2]);
 await clickOn(page, row.locator('xpath=..').locator('details.pp-box summary'));
 const job = page.locator('.settle-job[data-job="J-2044"]');
@@ -380,6 +407,7 @@ await holdTo(page, LEN[9]);
 
 // Shot 10: the in-app strip (who did the last three beats), then the recap card.
 const strip = page.locator('.cc-strip');
+await stickLeft(page, null);
 await scrollTo(page, strip, 'center');
 await page.mouse.move(5, 5);
 await beginShot(page, 10);
@@ -431,14 +459,16 @@ await mphone.locator('.reply textarea').scrollIntoViewIfNeeded();
 await p2.evaluate(() => window.scrollBy(0, 200));
 shotNo = 5;
 await tag(p2, 'DRAFT · shot 5 (insert)');
+await stickLeft(p2, 'log');
+await side(p2, true);
 await caption(p2, VO[5][4]);
 await note(p2, 'Insert: prompt injection (another take)');
 const insStart = segs.length;
 startSeg(p2);
-await pause(p2, 1);
+await pause(p2, 0.5);
 await clickOn(p2, mphone.locator('.send-reply'));
 await offCamera(p2, () => mphone.locator('.callout.warn').or(p2.getByText('Agent escalated to the owner')).first().waitFor({ timeout: 45_000 }));
-await scrollTo(p2, mphone.locator('.callout.warn').first(), 'center');
+await scrollTo(p2, mphone.locator('.callout.warn').first(), 'center', 0.7);
 await highlight(p2, mphone.locator('.callout.warn').first(), 'escalated to the owner · nothing paid', 2);
 endSeg();
 const insertion = segs.splice(insStart);
