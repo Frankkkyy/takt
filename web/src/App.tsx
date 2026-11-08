@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { DemoState, LedgerEvent } from '../../shared/types';
 import { chf, dayLong, getState, post } from './api';
 import { Flow } from './components/Flow';
@@ -42,13 +42,13 @@ function Story({ state, onOpen }: { state: DemoState; onOpen: () => void }) {
         </div>
       )}
       <div className="mail-toast" role="status">
-        <div className="mail-icon">✉</div>
+        <div className="mail-icon" aria-hidden>✉</div>
         <div className="mail-body">
           <small>New email · Thomas Schmid, Hof Schmid (farm), Escholzmatt</small>
           <b>Mähdrescher: Halter gerissen, brauche 6 Stück bis Dienstag</b>
           <span className="muted">Harvest starts Wednesday. Saying no loses the best order of the week; bumping someone silently loses a customer.</span>
         </div>
-        <button className="btn accent" onClick={onOpen}>Open request</button>
+        <button className="btn primary" onClick={onOpen}>Open request</button>
       </div>
       <p className="hook">Airlines pay passengers who can wait. <b>Takt does it for factories, with PayPal.</b></p>
     </section>
@@ -68,27 +68,175 @@ const TOOL_TITLES: Record<string, string> = {
   escalate_to_owner: 'Agent escalated to the owner',
   draft_move_offer: 'Agent drafted the board-move offer',
 };
+/** Short verbs for a grouped row: "ran the planner · chose a plan · drafted 2 offers". */
+const TOOL_VERB: Record<string, [string, string]> = {
+  record_rush_job: ['recorded the job', 'recorded jobs'],
+  plan_bump_options: ['ran the planner', 'ran the planner'],
+  choose_bump_plan: ['chose a plan', 'chose plans'],
+  draft_offer: ['drafted an offer', 'drafted {n} offers'],
+  accept_offer: ['accepted a reply', 'accepted {n} replies'],
+  counter_offer: ['made a counter-offer', 'made {n} counter-offers'],
+  reply_to_customer: ['answered a customer', 'answered {n} times'],
+  decline_offer: ['recorded a no', 'recorded {n} noes'],
+  escalate_to_owner: ['escalated to the owner', 'escalated {n} times'],
+  draft_move_offer: ['drafted the move offer', 'drafted {n} move offers'],
+};
+
+type Cat = 'paypal' | 'agent' | 'tool' | 'guardrail' | 'owner' | 'milestone' | 'system';
+const SRC_LABEL: Record<Cat, string> = { paypal: 'PayPal', agent: 'Agent', tool: 'Tool', guardrail: 'Guardrail', owner: 'Owner', milestone: 'Takt', system: 'Takt' };
+function catOf(e: LedgerEvent): Cat {
+  if (e.source === 'api' || e.source === 'webhook') return 'paypal';
+  if (e.source === 'system' && /committed/i.test(e.title)) return 'milestone';
+  if (e.source === 'system' && (e.paypalId || /PayPal|Payout|Buyer/i.test(e.title))) return 'paypal';
+  return e.source as Cat;
+}
+const toolOf = (e: LedgerEvent) => (e.source === 'tool' ? /^tool (\w+)/.exec(e.title)?.[1] : undefined);
+
+function Icon({ cat }: { cat: Cat }) {
+  const p: Record<Cat, string> = {
+    paypal: 'M5 8h13l-3-3M19 16H6l3 3', // money moves
+    agent: 'M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z',
+    tool: 'M14 6a4 4 0 0 0-5 5l-5 5 3 3 5-5a4 4 0 0 0 5-5l-2.5 2.5-2-.5-.5-2z',
+    guardrail: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z',
+    owner: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 9c0-4 3-6 7-6s7 2 7 6',
+    milestone: 'M5 12l4 4 10-10',
+    system: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+  };
+  return (
+    <span className="ico" aria-hidden>
+      <svg viewBox="0 0 24 24" fill={cat === 'agent' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={cat === 'agent' ? 0 : 2.4} strokeLinecap="round" strokeLinejoin="round"><path d={p[cat]} /></svg>
+    </span>
+  );
+}
+
+const time = (at: string) => new Date(at).toLocaleTimeString('de-CH');
 
 function LogItem({ e }: { e: LedgerEvent }) {
-  const tool = e.source === 'tool' ? /^tool (\w+)/.exec(e.title)?.[1] : undefined;
+  const tool = toolOf(e);
   const title = tool ? TOOL_TITLES[tool] ?? e.title : e.title;
   const raw = tool || e.detail.length > 180;
+  const cat = catOf(e);
   return (
-    <li className={`src-${e.source}`}>
-      <span className="time">{new Date(e.at).toLocaleTimeString('de-CH')}</span>
-      <span className="src">{e.source}</span>
-      <b>{title}</b>
-      {e.amountChf !== undefined && <span className="amt">{chf(e.amountChf)}</span>}
-      {e.paypalId && <code title="PayPal id">{e.paypalId}</code>}
-      {raw ? (
-        <details className="detail">
-          <summary>{tool ? 'tool call' : `${e.detail.slice(0, 120)}…`}</summary>
-          <span>{e.detail}</span>
-        </details>
-      ) : (
-        <span className="detail">{e.detail}</span>
-      )}
+    <li className={`src-${e.source} cat-${cat}`}>
+      <Icon cat={cat} />
+      <span className="time">{time(e.at)}</span>
+      <div className="log-main">
+        <span className="src">{SRC_LABEL[cat]}</span>
+        <b>{title}</b>
+        {e.amountChf !== undefined && <span className="amt">{chf(e.amountChf)}</span>}
+        {e.paypalId && <code title="PayPal id">{e.paypalId}</code>}
+        {raw ? (
+          <details className="detail">
+            <summary>{tool ? 'tool call' : `${e.detail.slice(0, 120)}…`}</summary>
+            <span>{e.detail}</span>
+          </details>
+        ) : (
+          e.detail && <span className="detail">{e.detail}</span>
+        )}
+      </div>
     </li>
+  );
+}
+
+/** Consecutive tool calls fold into one row ("Agent used 4 tools: ran the planner · chose a plan · drafted 2 offers"). */
+function ToolGroup({ items }: { items: LedgerEvent[] }) {
+  const chrono = [...items].reverse();
+  const counts = new Map<string, number>();
+  for (const e of chrono) { const t = toolOf(e) ?? e.title; counts.set(t, (counts.get(t) ?? 0) + 1); }
+  const summary = [...counts].map(([t, n]) => { const v = TOOL_VERB[t]; return v ? (n === 1 ? v[0] : v[1].replace('{n}', String(n))) : t; }).join(' · ');
+  return (
+    <li className="src-tool cat-tool group">
+      <Icon cat="tool" />
+      <span className="time">{time(items[0].at)}</span>
+      <div className="log-main">
+        <span className="src">Agent</span>
+        <b>Agent used {items.length} tools</b>
+        <details className="detail group">
+          <summary>{summary}</summary>
+          <ol className="tool-steps">
+            {chrono.map((e) => (
+              <li key={e.id}><b>{TOOL_TITLES[toolOf(e) ?? ''] ?? e.title}</b><span className="raw">{e.detail}</span></li>
+            ))}
+          </ol>
+        </details>
+      </div>
+    </li>
+  );
+}
+
+function Ledger({ events }: { events: LedgerEvent[] }) {
+  const rows: (LedgerEvent | LedgerEvent[])[] = [];
+  for (const e of events) {
+    const last = rows[rows.length - 1];
+    if (e.source === 'tool' && Array.isArray(last)) last.push(e);
+    else if (e.source === 'tool' && last && !Array.isArray(last) && last.source === 'tool') rows[rows.length - 1] = [last, e];
+    else rows.push(e);
+  }
+  const meaningful = events.some((e) => !(e.source === 'system' && /reset/i.test(e.title)));
+  return (
+    <section className="ledger" aria-label="PayPal and agent log">
+      <div className="ledger-head">
+        <h3>PayPal &amp; agent log</h3>
+        <div className="ledger-key" aria-hidden>
+          <span><i style={{ background: 'var(--pp-blue)' }} />PayPal</span>
+          <span><i style={{ background: 'var(--ai)' }} />Agent</span>
+          <span><i style={{ background: 'var(--n-900)' }} />Owner</span>
+          <span><i style={{ background: 'var(--bad)' }} />Guardrail</span>
+        </div>
+      </div>
+      <ul aria-live="polite" aria-relevant="additions">
+        {rows.map((r) => (Array.isArray(r) ? <ToolGroup key={r[0].id} items={r} /> : <LogItem key={r.id} e={r} />))}
+      </ul>
+      {!meaningful && <p className="empty-log">Nothing has happened yet. Every agent decision, guardrail check, owner approval and PayPal call will appear here, newest first.</p>}
+    </section>
+  );
+}
+
+/** The Takt mark: three schedule lines (also the favicon). */
+export function LogoMark({ className = 'logo' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 32 32" aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#232c38" />
+      <path d="M8 10.5h16M8 16h10M8 21.5h13" stroke="#f2a20c" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Animated number for the header tiles (instant with prefers-reduced-motion). */
+function useCountUp(value: number) {
+  const [shown, setShown] = useState(value);
+  const from = useRef(value);
+  useEffect(() => {
+    const start = from.current;
+    if (start === value) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { from.current = value; setShown(value); return; }
+    const t0 = performance.now();
+    let raf = 0;
+    const step = (t: number) => {
+      const k = Math.min(1, (t - t0) / 700);
+      const v = Math.round(start + (value - start) * (1 - Math.pow(1 - k, 3)));
+      setShown(v);
+      if (k < 1) raf = requestAnimationFrame(step);
+      else from.current = value;
+    };
+    raf = requestAnimationFrame(step);
+    return () => { cancelAnimationFrame(raf); from.current = value; };
+  }, [value]);
+  return shown;
+}
+
+function YieldTile({ label, value, sign, className = '' }: { label: string; value: number; sign: '+' | '−' | ''; className?: string }) {
+  const v = useCountUp(value);
+  const [bump, setBump] = useState(false);
+  const prev = useRef(value);
+  useEffect(() => {
+    if (prev.current !== value) { setBump(true); const t = setTimeout(() => setBump(false), 900); prev.current = value; return () => clearTimeout(t); }
+  }, [value]);
+  return (
+    <div className={`${className}${bump ? ' bump' : ''}`}>
+      <small>{label}</small>
+      <b>{sign}{chf(Math.abs(v))}</b>
+    </div>
   );
 }
 
@@ -118,31 +266,33 @@ export function App() {
     };
   }, []);
 
-  if (!state) return <div className="center muted">Loading…</div>;
+  if (!state) return <div className="center"><div className="app-loading" role="status"><LogoMark /><span>Opening Werkstatt Reuss's schedule…</span></div></div>;
 
   const offerMatch = hash.match(/^#\/offer\/(.+)$/);
   if (offerMatch) return <OfferPage id={offerMatch[1]} state={state} onState={setState} />;
   if (hash === '#/pay') return <RushPayPage state={state} onState={setState} />;
 
   const showProposal = ['planned', 'offers-sent', 'awaiting-approval', 'awaiting-payment'].includes(state.stage);
-  const coldOpen = state.stage === 'idle' && !state.rush && !state.intakeQuestion && !state.move;
+  // The hero stays until the owner opens the email; then the console takes the whole screen.
+  const coldOpen = state.stage === 'idle' && !state.rush && !state.intakeQuestion && !state.move && !primed;
   const a = state.agent;
   const left = a.liveLeft;
   return (
     <div className="app">
       <header className="top">
+        <a className="skip" href="#flow">Skip to the current step</a>
         <div className="brand">
-          <span className="logo">▤</span>
+          <LogoMark />
           <div>
             <b>Takt</b>
             <small>Airline bumping for factory schedules</small>
           </div>
         </div>
         <div className="shop">Werkstatt Reuss · Emmen LU</div>
-        <div className="yield">
-          <div><small>Rush premiums</small><b>{chf(state.yield.premiumsChf)}</b></div>
-          <div><small>Compensations</small><b>−{chf(state.yield.compensationsChf)}</b></div>
-          <div className="net"><small>Net uplift</small><b>{state.yield.netChf < 0 ? '−' : '+'}{chf(Math.abs(state.yield.netChf))}</b></div>
+        <div className="yield" role="group" aria-label="This week's yield">
+          <YieldTile label="Rush premiums" value={state.yield.premiumsChf} sign="" />
+          <YieldTile label="Compensations" value={state.yield.compensationsChf} sign="−" />
+          <YieldTile label="Net uplift" value={state.yield.netChf} sign={state.yield.netChf < 0 ? '−' : '+'} className="net" />
         </div>
         <div className="modes">
           <span className={`badge ${state.modes.paypal}`}>PayPal: {state.modes.paypal}</span>
@@ -161,23 +311,19 @@ export function App() {
           onOpen={() => {
             setDraft(STORY_SAMPLE.text);
             setPrimed((n) => n + 1);
-            const card = document.querySelector('.intake-card');
-            card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            setTimeout(() => document.querySelector<HTMLButtonElement>('#read-request')?.focus({ preventScroll: true }), 50);
+            setTimeout(() => {
+              document.querySelector('.intake-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              document.querySelector<HTMLButtonElement>('#read-request')?.focus({ preventScroll: true });
+            }, 50);
           }}
         />
       )}
       <main className="main">
         <section className="left">
-          <Suspense fallback={<div className="board board-loading muted">Loading the board…</div>}>
+          <Suspense fallback={<div className="board board-loading" role="status"><span className="muted">Loading the shop floor board…</span><div className="sk-line" /><div className="sk-line w80" /><div className="sk-line" /><div className="sk-line w60" /></div>}>
             <Board state={state} showProposal={showProposal} onState={setState} />
           </Suspense>
-          <div className="ledger">
-            <h3>PayPal &amp; agent log</h3>
-            <ul>
-              {state.ledger.slice(0, 30).map((e) => <LogItem key={e.id} e={e} />)}
-            </ul>
-          </div>
+          <Ledger events={state.ledger.slice(0, 40)} />
         </section>
         <Flow state={state} onState={setState} draft={draft} setDraft={setDraft} primed={primed} onPrime={() => setPrimed((n) => n || 1)} />
       </main>
