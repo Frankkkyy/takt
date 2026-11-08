@@ -13,10 +13,18 @@ interface Beat { id: string; who: Who; text: string }
 const WHO_LABEL: Record<Who, string> = { claude: 'Claude', code: 'Code', owner: 'Owner', paypal: 'PayPal' };
 const WHO_ROLE: Record<Who, string> = { claude: 'reads & writes', code: 'does the numbers', owner: 'decides', paypal: 'moves money' };
 
-/** "Claude Haiku 5.5 (recorded): …" → Claude; "rules: …" → code; "button: …" → the customer tapped (code records it). */
-const viaWho = (detail: string): Who => (/^Claude/.test(detail) ? 'claude' : 'code');
+/** "Claude Haiku 5.5 (recorded): …" or "Read by Claude…" → Claude; "rules: …" → code; "button: …" → the customer tapped (code records it). */
+const viaWho = (detail: string): Who => (/^(Read by )?Claude/.test(detail) ? 'claude' : 'code');
 const afterVia = (detail: string) => detail.replace(/^[^:]{1,40}:\s*/, '');
 const nameIn = (title: string, re: RegExp) => re.exec(title)?.[1] ?? '';
+
+/** Events that only repeat the one before them: PayPal's webhook echo of our own call, the "accepted" after a counter. */
+function echoes(e: LedgerEvent, prev: LedgerEvent | undefined): boolean {
+  if (!prev) return false;
+  if (e.source === 'webhook' && prev.source === 'api' && e.paypalId && e.paypalId === prev.paypalId) return true;
+  const who = / accepted$/.exec(e.title) && e.title.replace(/ accepted$/, '');
+  return !!who && prev.title === `Counter-offer agreed with ${who}`;
+}
 
 function beatsOf(e: LedgerEvent, state: DemoState): Omit<Beat, 'id'>[] {
   const t = e.title;
@@ -101,7 +109,7 @@ export function ClaudeCodeStrip({ state }: { state: DemoState }) {
   const events = state.ledger.slice(0, 60);
   const resetAt = events.findIndex((e) => e.source === 'system' && /reset/i.test(e.title));
   const run = (resetAt === -1 ? events : events.slice(0, resetAt)).slice().reverse();
-  const beats: Beat[] = run.flatMap((e) => beatsOf(e, state).map((b, i) => ({ ...b, id: `${e.id}-${i}` })));
+  const beats: Beat[] = run.flatMap((e, k) => (echoes(e, run[k - 1]) ? [] : beatsOf(e, state).map((b, i) => ({ ...b, id: `${e.id}-${i}` }))));
   const last = beats.slice(-3);
   return (
     <section className="cc-strip" aria-label="Who did what: Claude, code, owner, PayPal">
