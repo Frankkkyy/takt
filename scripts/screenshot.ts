@@ -140,7 +140,7 @@ for (let run = 1; run <= runs; run++) {
   await page.locator('.extracted').waitFor({ timeout: 30_000 });
   if (run === 1) await shot('1-intake');
   await page.getByRole('button', { name: 'Make room' }).click();
-  await page.waitForSelector('text=Takt can make room', { timeout: 45_000 });
+  await page.waitForSelector('.step-card[data-step="make-room"][data-feasible="true"]', { timeout: 45_000 });
   await page.waitForTimeout(400);
   if (run === 1) await shot('2-make-room');
   const ghosts = await board.locator('.takt-ev.ghost').count();
@@ -193,7 +193,7 @@ for (let run = 1; run <= runs; run++) {
     const lang = await popup.evaluate(() => document.documentElement.lang).catch(() => '');
     await approveInPopup(popup, `${privateOut}/4b-sandbox-paypal-popup-review.png`, `${out}/4b-sandbox-paypal-popup-login.png`);
     check('PayPal login page in the popup is English (before the buyer logs in)', /^en/i.test(lang), `html lang="${lang}"`);
-    await page.waitForSelector('text=Schedule committed', { timeout: 90_000 });
+    await page.waitForSelector('.step-card[data-step="committed"]', { timeout: 90_000 });
     const viaSdk = await page.evaluate(async () => (await (await fetch('/api/state')).json()).rushOrder.paypal.some((s: { label: string }) => /JS SDK v6 onApprove/.test(s.label)));
     check('authorized through onApprove (JS SDK), not the redirect', viaSdk);
   } else if (sandbox) {
@@ -213,7 +213,7 @@ for (let run = 1; run <= runs; run++) {
       }
     }
     await approveInSandbox(browser, url, `${privateOut}/4b-sandbox-paypal-checkout.png`);
-    await page.waitForSelector('text=Schedule committed', { timeout: 90_000 });
+    await page.waitForSelector('.step-card[data-step="committed"]', { timeout: 90_000 });
   } else {
     if (cancelFirst || run === 1) {
       await page.getByRole('button', { name: 'Buyer cancels (mock)' }).click();
@@ -222,7 +222,7 @@ for (let run = 1; run <= runs; run++) {
       if (run === 1) await shot('4d-buyer-cancelled');
     }
     await page.getByRole('button', { name: /Pay with PayPal/ }).click();
-    await page.waitForSelector('text=Schedule committed', { timeout: 10_000 });
+    await page.waitForSelector('.step-card[data-step="committed"]', { timeout: 10_000 });
   }
   check(`${tag}schedule committed after PayPal confirmed`, true);
   await page.waitForTimeout(800);

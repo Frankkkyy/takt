@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { DemoState, Job } from '../../../shared/types';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import type { DemoState, Job, RushRequest } from '../../../shared/types';
 import { chf, dayLong, MACHINE_SHORT, plural, post } from '../api';
 import { OfferCard, withParagraphs } from './Offer';
 import { RUSH_SAMPLES } from '../samples';
@@ -47,6 +47,79 @@ const STEPS: { key: DemoState['stage'][]; label: string }[] = [
   { key: ['awaiting-payment'], label: 'Rush pays' },
   { key: ['committed'], label: 'Committed' },
 ];
+
+/* ---------- Narrative headlines: one plain-English sentence per step, built from live data (≤ ~12 words) ---------- */
+const NUM_WORD = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'];
+const numWord = (n: number) => NUM_WORD[n] ?? String(n);
+const WEEKDAY = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+/** "Tuesday" this week; "Mon 16 Nov" further out, so it never reads as the wrong week. */
+const dayWord = (state: DemoState, day: number) => (day < 5 ? WEEKDAY[day % 5] : dayLong(state.boardStartIso, day));
+/** "the brackets" from "Header brackets for combine (rush)"; "the parts" when the title is not a simple noun. */
+function partsOf(r: RushRequest): string {
+  const core = r.title.replace(/\([^)]*\)/g, '').split(/\s+for\s+|,|;/)[0].trim();
+  const word = core.split(/\s+/).pop()?.toLowerCase() ?? '';
+  if (!/^[a-z-]{3,16}$/.test(word)) return 'the parts';
+  return r.qty === 1 || /s$/.test(word) ? `the ${word}` : 'the parts';
+}
+const andList = (names: string[]) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`);
+
+function storyHeadline(state: DemoState, primedStory: boolean): string {
+  const { plan, stage } = state;
+  // Names never break across lines in a headline ("Hof / Schmid").
+  const nb = (s: string) => s.replace(/ /g, '\u00a0');
+  const rush = state.rush && { ...state.rush, customer: { ...state.rush.customer, name: nb(state.rush.customer.name) } };
+  const name = (id: string) => nb(state.customers.find((c) => c.id === id)?.name ?? id);
+  switch (stage) {
+    case 'idle':
+    case 'intake': {
+      if (state.intakeQuestion && !rush) return 'Takt needs a few more details first.';
+      if (!rush) return primedStory ? 'Hof\u00a0Schmid needs six brackets by Tuesday.' : 'A rush order lands in a full week.';
+      const by = dayWord(state, rush.dueDay);
+      if (rush.firstFitDay !== undefined && rush.firstFitDay > rush.dueDay) return `${rush.customer.name} needs ${partsOf(rush)} by ${by}. The shop is full.`;
+      return `${rush.customer.name} needs ${partsOf(rush)} by ${by}. There is room.`;
+    }
+    case 'planned': {
+      if (!plan || !rush) return 'Takt can make room.';
+      if (!plan.feasible) return 'No room this time. Nobody is asked to wait.';
+      const n = plan.offers.length;
+      const gets = `${rush.customer.name} gets ${partsOf(rush)} ${dayWord(state, rush.dueDay)}.`;
+      if (!n) return `Nobody has to move. ${gets}`;
+      const d = Math.max(...plan.offers.map((o) => o.delayDays));
+      const same = plan.offers.every((o) => o.delayDays === d);
+      const wait = same ? (d === 1 ? 'one day' : `${numWord(d).toLowerCase()} days`) : `up to ${plural(d, 'day')}`;
+      return `${numWord(n)} ${n === 1 ? 'customer waits' : 'customers wait'} ${wait}. ${gets}`;
+    }
+    case 'offers-sent': {
+      const offers = plan?.offers ?? [];
+      const needsYou = offers.find((o) => o.status === 'sent' && o.escalation);
+      if (needsYou) return `${name(needsYou.customerId)}'s reply needs you.`;
+      const agreed = offers.filter((o) => o.status === 'accepted').map((o) => name(o.customerId));
+      const waiting = offers.filter((o) => o.status === 'sent').map((o) => name(o.customerId));
+      if (!waiting.length) return 'Answers are in.';
+      return agreed.length ? `${andList(agreed)} agreed. Waiting for ${andList(waiting)}.` : `Waiting for ${andList(waiting)}.`;
+    }
+    case 'awaiting-approval': {
+      const n = plan?.offers.length ?? 0;
+      if (n === 1 && plan) return `${name(plan.offers[0].customerId)} agreed. Your approval moves the money.`;
+      return n ? 'Everyone agreed. Your approval moves the money.' : 'Your approval opens the rush checkout.';
+    }
+    case 'awaiting-payment':
+      return rush ? `${rush.customer.name} pays with PayPal: a hold, not a charge.` : 'The rush customer pays with PayPal.';
+    case 'committed':
+      if (state.jobs.some((j) => j.rush && j.status === 'cancelled')) return 'Rush cancelled. PayPal released the hold.';
+      return 'PayPal confirmed. The rush is on the board.';
+  }
+}
+
+/** Eyebrow (the step's name, small) above the story headline (the h2 the keyboard focus lands on). */
+function StepHead({ eyebrow, children }: { eyebrow: string; children: ReactNode }) {
+  return (
+    <header className="step-head">
+      <span className="eyebrow">{eyebrow}</span>
+      <h2 tabIndex={-1}>{children}</h2>
+    </header>
+  );
+}
 
 /** Progress stepper: numbered, done steps get a check, the current one is marked for screen readers too. */
 function Stepper({ steps, active, mini = false, label }: { steps: { label: string }[]; active: number; mini?: boolean; label: string }) {
@@ -114,6 +187,9 @@ function FallbackNote({ state }: { state: DemoState }) {
 type Run = (label: string, path: string, body?: unknown) => Promise<void>;
 
 /** One job in Settle: what PayPal will capture (or already did), its actions and its PayPal timeline. */
+/** A job that PayPal can still capture on shipment. */
+const canShip = (j: Job) => j.payment.kind === 'authorization' && j.status === 'booked';
+
 function SettleJob({ job: j, state, busy, run }: { job: Job; state: DemoState; busy: string | null; run: Run }) {
   const rush = state.rush;
   const auth = j.payment.kind === 'authorization' ? j.payment : undefined;
@@ -278,6 +354,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
 
   const customer = (id: string) => state.customers.find((c) => c.id === id);
   const fmtSigned = (n: number) => `${n < 0 ? '−' : '+'}${chf(Math.abs(n))}`;
+  const settleJobs = state.jobs.filter((j) => (j.rush || j.compensationChf) && (j.status !== 'cancelled' || j.rush));
+  const headline = storyHeadline(state, !!primed && text.startsWith(STORY_FROM));
 
   return (
     <aside className="flow" id="flow" ref={ref} aria-label="Current step" tabIndex={-1}>
@@ -286,8 +364,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       <MoveCard state={state} onState={onState} busy={busy} run={run} />
 
       {(stage === 'idle' || stage === 'intake') && (
-        <section className={`card step-card intake-card${primed ? ' primed' : ''}`} key={`intake-${primed}`}>
-          <h2 tabIndex={-1}>Rush request</h2>
+        <section className={`card step-card intake-card${primed ? ' primed' : ''}`} key={`intake-${primed}`} data-step="request">
+          <StepHead eyebrow="Request">{headline}</StepHead>
           {!primed && !rush && <p className="muted small intro">Start with the email in the banner above (<b>Open request</b>), or paste any request in German, French or English.</p>}
           {!rush && text.startsWith(STORY_FROM) && (
             <div className="mail-from"><span aria-hidden>✉</span><span><b>Thomas Schmid</b> · Hof Schmid (farm), Escholzmatt</span></div>
@@ -339,8 +417,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       )}
 
       {stage === 'planned' && plan && (
-        <section className="card step-card" key="planned">
-          <h2 tabIndex={-1}>{plan.feasible ? 'Takt can make room' : 'No room this time'}</h2>
+        <section className="card step-card" key="planned" data-step="make-room" data-feasible={plan.feasible}>
+          <StepHead eyebrow="Make room">{headline}</StepHead>
           {plan.feasible ? (
             <div className="stats">
               <Stat label="Rush price" value={chf(plan.rushPriceChf)} note={`premium ${chf(plan.rushPremiumChf)}`} />
@@ -398,9 +476,9 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       )}
 
       {stage === 'awaiting-approval' && plan && state.approval && (
-        <section className="card step-card approval" key="approval">
-          <h2 tabIndex={-1}>Approve money moves</h2>
-          <p className="muted">Everyone agreed. Nothing has reached PayPal yet: you approve every move first.</p>
+        <section className="card step-card approval" key="approval" data-step="owner-ok">
+          <StepHead eyebrow="Owner OK">{headline}</StepHead>
+          <p className="muted">Nothing has reached PayPal yet: you approve every move first.</p>
           <div className="stats">
             <Stat label="Compensation" value={`−${chf(plan.compensationTotalChf)}`} note={plural(plan.offers.length, 'customer')} />
             <Stat label="Rush hold" value={chf(plan.rushPriceChf)} note="PayPal authorization" />
@@ -424,8 +502,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       )}
 
       {(stage === 'offers-sent' || stage === 'awaiting-approval') && plan && (
-        <section className={`card${stage === 'offers-sent' ? ' step-card' : ''}`} key="answers">
-          {stage === 'offers-sent' ? <h2 tabIndex={-1}>Waiting for answers</h2> : <h3>Customer answers</h3>}
+        <section className={`card${stage === 'offers-sent' ? ' step-card' : ''}`} key="answers" data-step={stage === 'offers-sent' ? 'offers' : undefined}>
+          {stage === 'offers-sent' ? <StepHead eyebrow="Offers">{headline}</StepHead> : <h3>Customer answers</h3>}
           {stage === 'offers-sent' && <p className="muted">Each customer gets a one-page offer in their language. They tap a button or answer in their own words; the agent reads the reply, code checks the caps.</p>}
           <div className="answer-status" aria-live="polite">
             {plan.offers.map((o) => (
@@ -448,8 +526,8 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
       )}
 
       {(stage === 'awaiting-payment' || stage === 'committed') && plan && (
-        <section className="card step-card" key={stage}>
-          <h2 tabIndex={-1}>{stage === 'committed' ? 'Schedule committed' : 'Rush customer approves'}</h2>
+        <section className="card step-card" key={stage} data-step={stage === 'committed' ? 'committed' : 'rush-pays'}>
+          <StepHead eyebrow={stage === 'committed' ? 'Schedule committed' : 'Rush pays'}>{headline}</StepHead>
           {stage === 'awaiting-payment' && (
             <>
               <p className="muted">{rush?.customer.name} gets a PayPal checkout for {chf(plan.rushPriceChf)} (intent AUTHORIZE: a hold, charged at shipment). The schedule changes only when PayPal confirms the authorization.</p>
@@ -481,10 +559,13 @@ export function Flow({ state, onState, draft: text, setDraft: setText, primed = 
           )}
           {stage === 'committed' && (
             <>
-              <h3>Settle</h3>
+              <header className="step-head sub" data-step="settle">
+                <span className="eyebrow">Settle</span>
+                <h3>{settleJobs.some(canShip) ? 'Ship jobs to capture payments.' : 'Every job settled with PayPal.'}</h3>
+              </header>
               <p className="muted small">Ship a job and PayPal captures what was agreed. Each job shows every PayPal object it touched; "Check in PayPal" reads the live status from the API.</p>
               <div className="settle">
-                {state.jobs.filter((j) => (j.rush || j.compensationChf) && (j.status !== 'cancelled' || j.rush)).map((j) => (
+                {settleJobs.map((j) => (
                   <SettleJob key={j.id} job={j} state={state} busy={busy} run={run} />
                 ))}
               </div>

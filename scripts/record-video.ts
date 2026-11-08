@@ -219,7 +219,7 @@ await holdTo(page, LEN[3]);
 await beginShot(page, 4);
 await caption(page, VO[4][0]);
 await clickOn(page, page.getByRole('button', { name: 'Make room' }));
-await offCamera(page, () => page.waitForSelector('text=Takt can make room', { timeout: 45_000 }));
+await offCamera(page, () => page.waitForSelector('.step-card[data-step="make-room"][data-feasible="true"]', { timeout: 45_000 }));
 await scrollTop(page);
 await pause(page, 1);
 await highlight(page, board.locator('.takt-ev.ghost').first(), 'proposed slot', 2.5);
@@ -328,7 +328,7 @@ await submit.click();
 await popup.waitForTimeout(600);
 endSeg();
 await popup.waitForEvent('close', { timeout: 90_000 });
-await page.waitForSelector('text=Schedule committed', { timeout: 90_000 });
+await page.waitForSelector('.step-card[data-step="committed"]', { timeout: 90_000 });
 // Payout status (cut the wait): the batch settles a few seconds after approval (webhook / poll).
 const delivered = page.getByText(/Compensation delivered|PAYOUTS-ITEM\.SUCCEEDED/).first();
 if (await delivered.waitFor({ timeout: 60_000 }).then(() => true, () => false)) {
@@ -410,7 +410,7 @@ await p2.getByRole('button', { name: 'EN web form', exact: true }).click();
 await p2.getByRole('button', { name: 'Let Takt read it' }).click();
 await p2.locator('.extracted').waitFor({ timeout: 45_000 });
 await p2.getByRole('button', { name: 'Make room' }).click();
-await p2.waitForSelector('text=Takt can make room', { timeout: 45_000 });
+await p2.waitForSelector('.step-card[data-step="make-room"][data-feasible="true"]', { timeout: 45_000 });
 await p2.getByRole('button', { name: /^Send \d offers?$/ }).click();
 await p2.locator('.phone').first().waitFor();
 const mphone = p2.locator('.phone', { hasText: /Meier/ });
