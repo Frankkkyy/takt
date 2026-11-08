@@ -176,7 +176,7 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
             due: offer ? dayLong(iso, offer.toDay) : '',
             late: false,
             payState: payStateOf(j, false),
-            payLine: offer ? `${prop.kind === 'move' ? 'Board move · ' : ''}Offer: ${chf(offer.compensationChf)} via ${mech} · ${offer.status}` : prop.kind === 'move' ? 'Board move: within the promised date' : 'Proposed slot',
+            payLine: offer ? `${prop.kind === 'move' ? 'Board move · ' : ''}Offer: ${chf(offer.compensationChf)} via ${mech} · ${offer.status === 'accepted' ? 'agreed by the customer' : offer.status === 'sent' ? 'waiting for the customer' : offer.status}` :  prop.kind === 'move' ? 'Board move: within the promised date' : 'Proposed slot',
             ids: [],
             ghost: 'bump',
             badge: offer ? `+${offer.delayDays}d${offer.status === 'accepted' ? ' ✓' : ''}` : prop.kind === 'move' ? 'move' : 'proposed',
@@ -190,7 +190,7 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
         startDate: hourToDate(iso, g.start),
         endDate: hourToDate(iso, g.end, true),
         name: info.badge ?? '',
-        cls: `takt-ev ghost ghost-${info.ghost} pay-${info.payState}`,
+        cls: `takt-ev ghost ghost-${info.ghost} pay-${info.payState}${!isRush && offer?.status === 'accepted' ? ' agreed' : ''}`,
         info: JSON.stringify(info),
       });
     }
@@ -291,6 +291,21 @@ export function Board({ state, showProposal, onState }: Props) {
       ? { schedule: move!.proposed, bumped: [move!.jobId], offers: move!.offer ? [move!.offer] : [], kind: 'move' }
       : undefined;
   const proposal = prop?.schedule;
+  const agreedCount = prop?.offers.filter((o) => o.status === 'accepted').length ?? 0;
+  const askingCount = (prop?.offers.length ?? 0) - agreedCount;
+
+  // Payoff moment: a short glow around the board when the plan commits (CSS respects prefers-reduced-motion).
+  const [justCommitted, setJustCommitted] = useState(false);
+  const lastStage = useRef(state.stage);
+  useEffect(() => {
+    if (state.stage === 'committed' && lastStage.current !== 'committed') {
+      setJustCommitted(true);
+      const t = setTimeout(() => setJustCommitted(false), 1900);
+      lastStage.current = state.stage;
+      return () => clearTimeout(t);
+    }
+    lastStage.current = state.stage;
+  }, [state.stage]);
   const events = useMemo(() => buildEvents(state, prop), [state, prop?.schedule, prop?.kind]); // eslint-disable-line react-hooks/exhaustive-deps
   // Bryntum binds listeners once; read the latest values through refs.
   // The review note belongs to an open move: once it is sent on, committed, declined or discarded, drop it.
@@ -379,7 +394,7 @@ export function Board({ state, showProposal, onState }: Props) {
   }, [bookedPct]);
 
   return (
-    <div className="board bryntum-board">
+    <div className={`board bryntum-board${justCommitted ? ' just-committed' : ''}`} aria-label="Shop floor board: machines and booked jobs">
       <div className="board-bar">
         <div className="zoom" role="group" aria-label="Board range">
           <button className={days === 5 ? 'on' : ''} onClick={() => setDays(5)}>1 week</button>
@@ -392,7 +407,8 @@ export function Board({ state, showProposal, onState }: Props) {
           <span><i className="sw pay-rush" /> rush</span>
           {!locked && <span className="hint">Drag a booked job later: Takt reviews the move</span>}
           {prop?.kind === 'rush' && <span><i className="sw ghost-rush-sw" /> proposed rush slot</span>}
-          {proposal && <span><i className="sw ghost-bump-sw" /> proposed new slot ({prop?.kind === 'move' && !move?.offer ? 'board move' : 'needs consent'})</span>}
+          {proposal && (askingCount > 0 || !prop?.offers.length) && <span><i className="sw ghost-bump-sw" /> proposed new slot ({prop?.kind === 'move' && !move?.offer ? 'board move' : 'needs consent'})</span>}
+          {proposal && agreedCount > 0 && <span><i className="sw ghost-agreed-sw" /> agreed new slot</span>}
         </div>
       </div>
       {review && (
