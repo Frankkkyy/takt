@@ -647,6 +647,7 @@ details.more table.options { margin-top: 6px; }
 /* a real phone already has a bezel: drop ours on small screens */
 @media (max-width: 520px) {
   .offer-page { padding: 0; place-items: start stretch; }
+  .story { overflow: clip; } /* the email's slide-in (translateX 60px) widened the page and zoomed it out */
   .offer-page > .empty { justify-self: center; margin: 15vh var(--sp-4) 0; max-width: none; }
   .offer-page .phone.standalone { width: 100%; border-radius: 0; background: none; padding: 0; box-shadow: none; animation: none; }
   .phone.standalone .phone-notch { display: none; }
