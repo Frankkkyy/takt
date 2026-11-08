@@ -73,12 +73,16 @@ code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background:
 .ev-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .ev-txt b, .ev-txt span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev-txt span { font-size: 10px; opacity: .9; }
+/* narrow bars: just the customer (or the ghost's "+1d" / "RUSH"); the rest is in the tooltip */
+.bryntum-board .takt-ev { container-type: inline-size; }
+@container (max-width: 64px) { .ev-txt span { display: none; } }
 .takt-tip { font-size: 12px; line-height: 1.5; }
 .takt-tip .late { color: var(--bad); font-weight: 700; }
 .takt-tip small { color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
 .bryntum-board .rush-due { border-left: 2px solid var(--bad); }
 .bryntum-board .b-histogram rect.b-series-effort { fill: #a9c1de; }
-.bryntum-board .b-histogram rect.b-series-effort.full { fill: #c0392b; }
+.bryntum-board .b-histogram rect.b-series-effort.full { fill: #f3c6bb; }
+.bryntum-board .b-histogram rect.b-series-effort.over { fill: #c0392b; }
 @media (prefers-reduced-motion: reduce) { .bryntum-board .takt-ev.ghost.ghost-rush { animation: none; } }
 
 .ledger { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
@@ -272,7 +276,8 @@ table.options { width: 100%; border-collapse: collapse; font-size: 12px; }
 .settle-job .settle-actions { margin-left: auto; }
 p.small { font-size: 12px; }
 .bryntum-board .b-histogram text.b-bar-legend { writing-mode: horizontal-tb; text-anchor: middle; dominant-baseline: central; font-size: 12px; font-weight: 700; fill: #1b2533; }
-.bryntum-board .b-histogram text.b-bar-legend.full { fill: #fff; }
+.bryntum-board .b-histogram text.b-bar-legend.full { fill: #8a2a1e; }
+.bryntum-board .b-histogram text.b-bar-legend.over { fill: #fff; }
 .board-loading { padding: 24px; min-height: 400px; }
 /* board drag → move review */
 .board-bar .hint { color: var(--navy); font-style: italic; }

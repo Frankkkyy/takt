@@ -52,6 +52,8 @@ interface EventInfo {
   ids: string[];
   ghost?: 'rush' | 'bump';
   badge?: string;
+  /** Second line of a ghost bar, e.g. "CHF 50" (hidden when the bar is narrow). */
+  detail?: string;
   moving?: boolean;
 }
 
@@ -177,7 +179,8 @@ function buildEvents(state: DemoState, prop: Proposal | undefined): BoardEvent[]
             payLine: offer ? `${prop.kind === 'move' ? 'Board move · ' : ''}Offer: ${chf(offer.compensationChf)} via ${mech} · ${offer.status}` : prop.kind === 'move' ? 'Board move: within the promised date' : 'Proposed slot',
             ids: [],
             ghost: 'bump',
-            badge: offer ? `+${offer.delayDays} d · ${chf(offer.compensationChf)}${offer.status === 'accepted' ? ' ✓' : ''}` : prop.kind === 'move' ? 'move' : 'proposed',
+            badge: offer ? `+${offer.delayDays}d${offer.status === 'accepted' ? ' ✓' : ''}` : prop.kind === 'move' ? 'move' : 'proposed',
+            detail: offer ? chf(offer.compensationChf) : undefined,
           };
       // The rush ghost keeps the id the committed rush job will get, so it turns solid in place.
       const id = isRush ? `${boardKey(g.jobId)}|${g.machineId}` : `ghost|${boardKey(g.jobId)}|${g.machineId}`;
@@ -221,7 +224,8 @@ const info = (r: { get: (f: string) => unknown }): EventInfo | undefined => {
 
 const enc = (s: string) => StringHelper.encodeHtml(s);
 
-// Working-hour ticks (07–15) so nights and weekends drop out of the axis; one week shows every hour.
+// Working-hour ticks (07–15) so nights and weekends drop out of the axis; one week labels every second hour
+// (7 9 11 13), two weeks only name the days, short ("Mon 9"), so ten of them fit at 1280 px.
 const PRESET_1W = {
   base: 'hourAndDay',
   id: 'taktShift1w',
@@ -230,8 +234,9 @@ const PRESET_1W = {
   shiftUnit: 'day',
   timeResolution: { unit: 'hour', increment: 1 },
   headers: [
-    { unit: 'day', dateFormat: 'ddd D.M.' },
-    { unit: 'hour', increment: 1, dateFormat: 'H' },
+    { unit: 'day', dateFormat: 'ddd D MMM' },
+    // one tick per hour (bars start on the hour), labelled every second hour so it stays readable at 1280 px
+    { unit: 'hour', increment: 1, renderer: (d: Date) => (d.getHours() % 2 ? String(d.getHours()) : '') },
   ],
 };
 const PRESET_2W = {
@@ -239,7 +244,7 @@ const PRESET_2W = {
   id: 'taktShift2w',
   tickWidth: 9,
   headers: [
-    { unit: 'day', dateFormat: 'ddd D.M.' },
+    { unit: 'day', dateFormat: 'ddd D' },
     { unit: 'hour', increment: 1, renderer: () => '' },
   ],
 };
@@ -482,8 +487,9 @@ export function Board({ state, showProposal, onState }: Props) {
           eventRenderer={({ eventRecord }: { eventRecord: SchedulerEventModel }) => {
             const i = info(eventRecord as unknown as { get: (f: string) => unknown });
             if (!i) return enc(eventRecord.name ?? '');
+            // Ghosts: a short label that survives a narrow bar ("RUSH", "+1d"); details stay in the tooltip.
             if (i.ghost === 'rush') return `<div class="ev-txt"><b>RUSH</b><span>${enc(i.short)} · ${enc(i.op)}</span></div>`;
-            if (i.ghost) return `<div class="ev-txt"><b>${enc(i.badge ?? '')}</b><span>${enc(i.short)} → ${enc(i.due)}</span></div>`;
+            if (i.ghost) return `<div class="ev-txt"><b>${enc(i.badge ?? '')}</b><span>${enc(i.short)}${i.detail ? ` · ${enc(i.detail)}` : ''}</span></div>`;
             if (i.payState === 'rush') return `<div class="ev-txt"><b>RUSH</b><span>${enc(i.short)} · ${enc(i.op)} · ${enc(i.title)}</span></div>`;
             return `<div class="ev-txt"><b>${enc(i.short)}</b><span>${enc(i.jobId)} · ${enc(i.op)} · ${enc(i.title)}</span></div>`;
           }}
@@ -504,7 +510,7 @@ export function Board({ state, showProposal, onState }: Props) {
             hideHeaders
             hideHorizontalScrollbar
             rowHeight={HISTO_ROW}
-            getBarTextDOMConfig={(dom, datum) => ({ ...dom, y: HISTO_ROW / 2, className: { 'b-bar-legend': 1, full: isFull(datum) } })}
+            getBarTextDOMConfig={(dom, datum) => ({ ...dom, y: HISTO_ROW / 2, className: { 'b-bar-legend': 1, full: isFull(datum), over: isOver(datum) } })}
             scaleColumn={null as never}
             showBarTip
             showBarText
@@ -513,7 +519,7 @@ export function Board({ state, showProposal, onState }: Props) {
             barTextEffortUnit="hour"
             assignmentFilterFn={(a) => !String((a.event as EventModel | undefined)?.cls ?? '').includes('ghost')}
             getBarText={(datum) => (datum.maxEffort ? `${Math.round((datum.effort / datum.maxEffort) * 100)} %` : '')}
-            getBarClass={(_s, _d, datum) => (isFull(datum) ? 'full' : '')}
+            getBarClass={(_s, _d, datum) => (isOver(datum) ? 'over' : isFull(datum) ? 'full' : '')}
             columns={[
               {
                 text: 'Booked',
@@ -533,6 +539,8 @@ export function Board({ state, showProposal, onState }: Props) {
 }
 
 const isFull = (d: { effort: number; maxEffort: number }) => !!d.maxEffort && d.effort >= d.maxEffort - 1;
+/** Booked beyond the shift: shown in strong red, unlike a merely full day. */
+const isOver = (d: { effort: number; maxEffort: number }) => !!d.maxEffort && d.effort > d.maxEffort + 0.01;
 
 const SHORT: Record<string, string> = { alpdrone: 'Alpine Drone' };
 function shortName(customerId: string, full: string): string {
