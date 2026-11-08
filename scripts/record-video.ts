@@ -226,7 +226,7 @@ await highlight(page, board.locator('.takt-ev.ghost').first(), 'proposed slot', 
 await caption(page, VO[4][1]);
 await highlight(page, page.locator('.why').first(), 'Why these customers (Claude)', 4.5);
 await caption(page, VO[4][2]);
-const total = page.locator('.kv.total', { hasText: 'Net uplift' }).first();
+const total = page.locator('.flow .stats').first(); // rush price · compensation · net uplift tiles
 await scrollTo(page, total, 'center');
 await highlight(page, total, '', 2.5);
 await holdTo(page, LEN[4]);
@@ -288,7 +288,7 @@ const payoutLine = page.getByText(/Payout to Studio Meier/).first();
 await offCamera(page, () => payoutLine.waitFor({ timeout: 60_000 }));
 await scrollTo(page, payoutLine, 'center');
 await caption(page, VO[7][1]);
-await highlight(page, payoutLine.locator('xpath=..'), 'PayPal Payout · CHF 45', 3);
+await highlight(page, payoutLine.locator('xpath=ancestor::li[1]'), 'PayPal Payout · CHF 45', 3);
 const sdkButton = page.locator('#paypal-sdk-button');
 await offCamera(page, async () => {
   await sdkButton.waitFor({ state: 'visible', timeout: 30_000 });
@@ -336,7 +336,7 @@ if (await delivered.waitFor({ timeout: 60_000 }).then(() => true, () => false)) 
   await note(page, 'cut: payout settled later');
   startSeg(page);
   await scrollTo(page, delivered, 'center');
-  await highlight(page, delivered.locator('xpath=..'), 'Payout to Studio Meier · SUCCESS', 2.5);
+  await highlight(page, delivered.locator('xpath=ancestor::li[1]'), 'Payout to Studio Meier · SUCCESS', 2.5);
   endSeg();
 } else skipped.push('shot 7: payout SUCCESS line did not appear within 60 s');
 
