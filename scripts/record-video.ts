@@ -8,6 +8,9 @@
 // Env: VIDEO_OUT (default ../../contests/paypal-ai/submission/video/takt-roughcut-v3.mp4)
 //      VIDEO_WIDTH (default 1920: the 1440×900 capture is upscaled (lanczos) to 1920×1200 so YouTube serves its 1080p+ bitrate)
 //      KEEP_CLIPS=1 (keep the raw Playwright .webm files and the cut segments next to the output)
+//      VO_JSON (default ../video/audio/vo.json from audio/vo_gen.py): voice-over line lengths; each caption waits until the
+//        previous line has been spoken, and <out>.cues.json records when each line, click and shot lands in the cut (audio/mix.py)
+//      FINAL=1 hides the DRAFT tag
 // Captions and the cursor dot are overlays injected into the recorded page only; the app itself is unchanged.
 import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
@@ -15,7 +18,7 @@ dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname, quiet:
 import { chromium, type BrowserContext, type Locator, type Page } from 'playwright';
 import ffmpegPath from 'ffmpeg-static';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, cpSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, cpSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -27,16 +30,20 @@ const work = mkdtempSync(path.join(tmpdir(), 'takt-video-'));
 mkdirSync(path.dirname(out), { recursive: true });
 
 // ---------- timeline bookkeeping: which seconds of which page video end up in the cut ----------
-type Seg = { page: Page; start: number; end: number; shot: number; crop?: { w: number; h: number } };
+type Seg = { id: number; page: Page; start: number; end: number; shot: number; crop?: { w: number; h: number } };
 const segs: Seg[] = [];
 const t0 = new Map<Page, number>();
 const popupSize = new Map<Page, { w: number; h: number }>(); // a popup window is smaller than the video frame: crop it
 const now = (p: Page) => (Date.now() - t0.get(p)!) / 1000;
-let open: { page: Page; start: number; shot: number } | null = null;
+let open: { id: number; page: Page; start: number; shot: number } | null = null;
+let segId = 0;
 let shotNo = 0;
 const shotVisible = new Map<number, number>();
 
-function startSeg(page: Page) { open = { page, start: now(page), shot: shotNo }; }
+function startSeg(page: Page) {
+  open = { id: ++segId, page, start: now(page), shot: shotNo };
+  for (const c of cues) if (c.segId === -1) c.segId = open.id; // cues set off camera land at the start of the next segment
+}
 function endSeg() {
   if (!open) return;
   const end = now(open.page);
@@ -45,6 +52,25 @@ function endSeg() {
     shotVisible.set(open.shot, (shotVisible.get(open.shot) ?? 0) + end - open.start);
   }
   open = null;
+}
+// ---------- voice-over pacing + cue sheet ----------
+const voPath = process.env.VO_JSON ?? new URL('../../../contests/paypal-ai/submission/video/audio/vo.json', import.meta.url).pathname;
+const voDur = new Map<string, number>(existsSync(voPath) ? (JSON.parse(readFileSync(voPath, 'utf8')) as { text: string; dur: number }[]).map((v) => [v.text, v.dur]) : []);
+const VO_GAP = 0.3;
+let voEnd = 0, cutExtra = 0, voGate = true; // cutExtra: the injection insert, recorded last but spliced into shot 5
+const voiced = new Set<string>();
+type Cue = { kind: 'vo' | 'click' | 'shot'; text?: string; shot?: number; segId: number; offset: number };
+const cues: Cue[] = [];
+function cue(kind: Cue['kind'], extra: { text?: string; shot?: number } = {}) {
+  cues.push({ kind, ...extra, segId: open ? open.id : -1, offset: open ? now(open.page) - open.start : 0 });
+}
+/** Seconds of finished video so far (main take order). */
+const cutNow = () => segs.reduce((a, s) => a + s.end - s.start, 0) + (open ? now(open.page) - open.start : 0) + cutExtra;
+/** Holds the frame until the current voice-over line has been spoken. */
+async function waitVoice() {
+  if (!voGate || !open) return;
+  const left = voEnd + VO_GAP - cutNow();
+  if (left > 0) await open.page.waitForTimeout(left * 1000);
 }
 const visibleInShot = () => (shotVisible.get(shotNo) ?? 0) + (open ? now(open.page) - open.start : 0);
 /** Runs `fn` off camera (the wait is cut out of the video). */
@@ -78,6 +104,8 @@ const OVERLAY = `(() => {
   #rec-note{position:fixed;right:18px;top:80px;z-index:2147483647;background:#111;color:#ffd75e;font:600 16px system-ui,sans-serif;padding:6px 12px;
     border-radius:6px;pointer-events:none}
   #rec-note:empty{display:none}
+  #rec-tag:empty{display:none}
+  .rec-hl.below .rec-hl-label{top:auto;bottom:-34px}
   #rec-cap.side{left:calc((100vw - 426px) / 2);max-width:900px}
   #rec-note.side{right:auto;left:12px;top:110px}
   html.rec-stick .main > .left{position:sticky;top:var(--rec-stick-top,0px)}
@@ -104,6 +132,13 @@ const OVERLAY = `(() => {
 async function ensureOverlay(page: Page) { await page.evaluate(OVERLAY); }
 async function caption(page: Page, text: string) {
   await ensureOverlay(page);
+  const d = voDur.get(text);
+  if (d !== undefined && !voiced.has(text)) {
+    await waitVoice();
+    voiced.add(text);
+    cue('vo', { text });
+    if (voGate) voEnd = cutNow() + d;
+  }
   await page.evaluate((t) => { document.getElementById('rec-cap')!.textContent = t; }, text);
 }
 async function note(page: Page, text: string) {
@@ -112,7 +147,7 @@ async function note(page: Page, text: string) {
 }
 async function tag(page: Page, text: string) {
   await ensureOverlay(page);
-  await page.evaluate((t) => { document.getElementById('rec-tag')!.textContent = t; }, text);
+  await page.evaluate((t) => { document.getElementById('rec-tag')!.textContent = t; }, process.env.FINAL === '1' ? '' : text);
 }
 /** Caption + note centred under the left column (off the phones / right panel), or back to the frame centre. */
 async function side(page: Page, on: boolean) {
@@ -131,18 +166,19 @@ async function stickLeft(page: Page, mode: 'board' | 'log' | null) {
     // The log is cut at the bottom of the viewport (overflow:clip: not scrollable, so scrollIntoView cannot shift it).
     const ledger = document.querySelector<HTMLElement>('.main > .left .ledger');
     const ledgerTop = left && ledger ? ledger.getBoundingClientRect().top - left.getBoundingClientRect().top + top : 0;
-    root.style.setProperty('--rec-ledger-max', `${Math.max(200, window.innerHeight - ledgerTop - 16)}px`);
+    // 'log' mode: keep the log above the side caption (bottom 28 px + ~2 lines) so no row sits under it
+    root.style.setProperty('--rec-ledger-max', `${Math.max(200, window.innerHeight - ledgerTop - (mode === 'log' ? 130 : 16))}px`);
   }, mode);
 }
-async function highlight(page: Page, loc: Locator, label = '', seconds = 2.5) {
+async function highlight(page: Page, loc: Locator, label = '', seconds = 2.5, below = false) {
   const b = await loc.boundingBox();
   if (!b) return;
-  await page.evaluate(({ b, label }) => {
-    const d = document.createElement('div'); d.className = 'rec-hl';
+  await page.evaluate(({ b, label, below }) => {
+    const d = document.createElement('div'); d.className = below ? 'rec-hl below' : 'rec-hl';
     Object.assign(d.style, { left: b.x - 6 + 'px', top: b.y - 6 + 'px', width: b.width + 12 + 'px', height: b.height + 12 + 'px' });
     if (label) { const l = document.createElement('div'); l.className = 'rec-hl-label'; l.textContent = label; d.appendChild(l); }
     document.body.appendChild(d);
-  }, { b, label });
+  }, { b, label, below });
   await pause(page, seconds);
   await page.evaluate(() => document.querySelectorAll('.rec-hl').forEach((e) => e.remove()));
 }
@@ -158,6 +194,7 @@ async function moveTo(page: Page, loc: Locator) {
 }
 async function clickOn(page: Page, loc: Locator) {
   await moveTo(page, loc);
+  cue('click');
   await page.mouse.down(); await pause(page, 0.08); await page.mouse.up();
 }
 /** Smooth scroll so the element sits near the top (or `block`) of the viewport. */
@@ -188,14 +225,16 @@ const VO = {
   10: ['The AI reads and writes. Code does the numbers.', 'The owner decides. PayPal moves the money.'],
   11: ["Takt. Pay the customer who can wait, charge the one who can't."],
 } as const;
-const LEN: Record<number, number> = { 1: 12, 2: 12, 3: 16, 4: 18, 5: 18, 6: 16, 7: 20, 8: 14, 9: 16, 10: 14, 11: 6 }; // shot 5: + ~3 s injection insert
+const LEN: Record<number, number> = { 1: 12, 2: 12, 3: 16, 4: 18, 5: 18, 6: 12, 7: 20, 8: 14, 9: 16, 10: 10, 11: 6 }; // shot 5: + ~3 s injection insert
 const skipped: string[] = [];
 
 async function beginShot(page: Page, n: number) {
+  await waitVoice();
   endSeg();
   shotNo = n;
   await tag(page, `DRAFT · shot ${n}`);
   startSeg(page);
+  cue('shot', { shot: n });
 }
 
 const email = process.env.PAYPAL_SANDBOX_BUYER_EMAIL, password = process.env.PAYPAL_SANDBOX_BUYER_PASSWORD;
@@ -290,7 +329,11 @@ await offCamera(page, () => page.locator('#approve-moves').waitFor({ timeout: 45
 await scrollTo(page, meier.locator('.offer-done'), 'end', 0.7);
 await pause(page, 0.6);
 await holdTo(page, LEN[5]);
+await waitVoice();
 endSeg();
+const INS_LEN = (voDur.get(VO[5][4]) ?? 3.4) + 0.7; // the insert is padded to this length; its line is spoken over it
+cutExtra += INS_LEN;
+voEnd = cutNow();
 const injectionAt = segs.length; // the injection insert (recorded later, in its own session) is spliced in here
 await caption(page, '');
 
@@ -390,7 +433,7 @@ await clickOn(page, row.getByRole('button', { name: 'Ship' })); // the only ambe
 await offCamera(page, () => row.locator('.good').waitFor({ timeout: 30_000 }).catch(() => {}));
 await caption(page, VO[9][1]);
 await highlight(page, row, 'captured CHF 70 less', 2.2);
-await highlight(page, board.locator('.takt-ev.shipped').first(), '✓ shipped · stays on the board', 1.6);
+await highlight(page, board.locator('.takt-ev.shipped').first(), '✓ shipped · stays on the board', 1.6, true);
 await caption(page, VO[9][2]);
 await clickOn(page, row.locator('xpath=..').locator('details.pp-box summary'));
 const job = page.locator('.settle-job[data-job="J-2044"]');
@@ -426,7 +469,7 @@ await page.setContent(CARD(`<div class="row">
   <div class="box"><b>Code</b><span>does the numbers: prices, plans, every limit</span></div><div class="arrow">→</div>
   <div class="box"><b>Owner</b><span>decides: approves every money move</span></div><div class="arrow">→</div>
   <div class="box"><b>PayPal</b><span>moves money: holds, captures less, pays out, voids</span></div></div>
-  <div class="small">20/20 agent eval · 49 tests · PayPal sandbox, CHF · Bryntum Scheduler Pro: drag a job and the agent prices the move</div>`));
+  <div class="small">20/20 agent eval · 51 tests · PayPal sandbox, CHF · Bryntum Scheduler Pro: drag a job and the agent prices the move</div>`));
 await page.mouse.move(-10, -10);
 await caption(page, VO[10][1]);
 startSeg(page);
@@ -435,6 +478,7 @@ await page.setContent(CARD(`<div class="big">Takt</div><div class="sub">Airline 
   <div class="by">Built by Francisco Del Barrio</div><div class="url">github.com/Frankkkyy/takt</div>`));
 await beginShot(page, 11);
 await caption(page, VO[11][0]); await holdTo(page, LEN[11]);
+await waitVoice(); await pause(page, 1.5); // let the closing line breathe before the cut ends
 endSeg();
 await ctx.close();
 
@@ -461,6 +505,7 @@ shotNo = 5;
 await tag(p2, 'DRAFT · shot 5 (insert)');
 await stickLeft(p2, 'log');
 await side(p2, true);
+voGate = false; // recorded after the main take: its pacing is the fixed INS_LEN above
 await caption(p2, VO[5][4]);
 await note(p2, 'Insert: prompt injection (another take)');
 const insStart = segs.length;
@@ -470,6 +515,7 @@ await clickOn(p2, mphone.locator('.send-reply'));
 await offCamera(p2, () => mphone.locator('.callout.warn').or(p2.getByText('Agent escalated to the owner')).first().waitFor({ timeout: 45_000 }));
 await scrollTo(p2, mphone.locator('.callout.warn').first(), 'center', 0.7);
 await highlight(p2, mphone.locator('.callout.warn').first(), 'escalated to the owner · nothing paid', 2);
+{ const o = open as { start: number } | null; if (o) { const left = INS_LEN - (now(p2) - o.start); if (left > 0) await pause(p2, left); } }
 endSeg();
 const insertion = segs.splice(insStart);
 segs.splice(injectionAt, 0, ...insertion);
@@ -491,6 +537,15 @@ for (const [i, s] of segs.entries()) {
 const list = path.join(work, 'list.txt');
 writeFileSync(list, parts.map((p) => `file '${p}'`).join('\n'));
 execFileSync(ff, ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', '-movflags', '+faststart', out]);
+// Cue sheet for audio/mix.py: absolute times in the final cut (after the insert splice).
+{
+  const startById = new Map<number, number>(); let acc = 0;
+  for (const s of segs) { startById.set(s.id, acc); acc += s.end - s.start; }
+  const ids = [...startById.keys()].sort((a, b) => a - b);
+  const at = (c: Cue) => startById.has(c.segId) ? startById.get(c.segId)! + c.offset : startById.get(ids.find((i) => i > c.segId) ?? ids[ids.length - 1])!;
+  const sheet = cues.map((c) => ({ kind: c.kind, text: c.text, shot: c.shot, at: +at(c).toFixed(3) })).sort((a, b) => a.at - b.at);
+  writeFileSync(out.replace(/\.mp4$/, '') + '.cues.json', JSON.stringify({ duration: +acc.toFixed(3), cues: sheet }, null, 1));
+}
 const probe = (() => { try { execFileSync(ff, ['-i', out], { stdio: 'pipe' }); return ''; } catch (e) { return String((e as { stderr?: Buffer }).stderr ?? ''); } })();
 const dur = /Duration: ([\d:.]+)/.exec(probe)?.[1];
 
